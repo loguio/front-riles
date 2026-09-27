@@ -1,0 +1,29 @@
+{
+  "welcome": {
+    "title": "Welcome to Riles",
+    "subtitle": "Your intelligent and adaptive running coach."
+  },
+  "step1": {
+    "title": "What is your main goal?",
+    "subtitle": "We will tailor your training program accordingly.",
+    "options": {
+      "finish_race": "Finish my first race",
+      "sub_2h": "Break 2h on half-marathon",
+      "personal_record": "Set a new personal record",
+      "stay_fit": "Run for fitness and health"
+    }
+  },
+  "step2": {
+    "title": "How many runs per week?",
+    "runs_per_week": "{{count}} run per week",
+    "runs_per_week_plural": "{{count}} runs per week"
+  },
+  "step3": {
+    "title": "What is your target pace?",
+    "subtitle": "Estimation of your base aerobic endurance pace."
+  },
+  "finish": {
+    "title": "Your training plan is ready!",
+    "cta": "Go to my dashboard"
+  }
+}

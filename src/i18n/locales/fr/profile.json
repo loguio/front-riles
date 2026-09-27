@@ -1,0 +1,26 @@
+{
+  "header": {
+    "section": "MON ESPACE",
+    "greeting": "Bonjour, {{name}}",
+    "bio": "Ton parcours, à ton rythme."
+  },
+  "goal": {
+    "title": "OBJECTIF ACTIF",
+    "weeks_remaining": "{{count}} semaine restante",
+    "weeks_remaining_plural": "{{count}} semaines restantes",
+    "progress": "Progression"
+  },
+  "stats": {
+    "total_distance": "Distance totale",
+    "active_weeks": "Semaines actives",
+    "completed_races": "Courses terminées"
+  },
+  "settings": {
+    "title": "Paramètres & Préférences",
+    "language": "Langue de l'application",
+    "language_description": "Choisis la langue d'affichage de l'application.",
+    "restart_onboarding": "Recommencer l'Onboarding (Test)",
+    "notifications": "Notifications d'entraînement",
+    "dark_mode": "Mode sombre"
+  }
+}

@@ -1,0 +1,38 @@
+# Node / Dependencies
+node_modules/
+riles-back/node_modules/
+riles-back/dist/
+
+# Build & Cache
+.expo/
+dist/
+web-build/
+.cache/
+
+# Design files & assets source
+.design/
+
+# Lockfiles
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Native & Build Artifacts
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.metro-health-check*
+
+# Logs & Debug
+npm-debug.*
+yarn-debug.*
+yarn-error.log*
+*.log
+
+# System & OS
+.DS_Store
+.env*.local
+

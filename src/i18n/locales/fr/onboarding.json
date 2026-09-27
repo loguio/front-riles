@@ -1,0 +1,29 @@
+{
+  "welcome": {
+    "title": "Bienvenue sur Riles",
+    "subtitle": "Ton coach running intelligent et adaptatif."
+  },
+  "step1": {
+    "title": "Quel est ton objectif principal ?",
+    "subtitle": "Nous adaptons ton programme sur-mesure.",
+    "options": {
+      "finish_race": "Finir ma première course",
+      "sub_2h": "Passer sous les 2h au semi-marathon",
+      "personal_record": "Battre mon record personnel",
+      "stay_fit": "Courir pour le plaisir et la santé"
+    }
+  },
+  "step2": {
+    "title": "Combien de sorties par semaine ?",
+    "runs_per_week": "{{count}} sortie par semaine",
+    "runs_per_week_plural": "{{count}} sorties par semaine"
+  },
+  "step3": {
+    "title": "Quelle est ton allure cible ?",
+    "subtitle": "Estimation de ton allure moyenne en endurance fondamentale."
+  },
+  "finish": {
+    "title": "Ton plan d'entraînement est prêt !",
+    "cta": "Accéder à mon tableau de bord"
+  }
+}

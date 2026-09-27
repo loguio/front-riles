@@ -1,0 +1,35 @@
+{
+  "header": {
+    "greeting": "Hi {{name}}",
+    "readiness_ready": "READY TO RUN",
+    "readiness_rest": "RECOVERY",
+    "readiness_caption": "READINESS SCORE"
+  },
+  "hero": {
+    "today_session": "TODAY • {{time}}",
+    "rest_day": "REST DAY",
+    "rest_day_desc": "Take this day to recharge, hydrate, and recover.",
+    "start_workout": "Start session",
+    "pace": "Pace",
+    "target_heart_rate": "Target HR",
+    "distance": "Distance",
+    "duration": "Duration"
+  },
+  "rpe": {
+    "title": "How did your workout feel?",
+    "subtitle": "RPE (Rate of Perceived Exertion)",
+    "saved": "Effort successfully saved!",
+    "saved_badge": "SAVED",
+    "save_button": "Log my exertion"
+  },
+  "stats": {
+    "weekly_mileage": "Weekly mileage",
+    "target_progress": "Target progress",
+    "streak": "{{count}} day streak",
+    "streak_plural": "{{count}} days streak"
+  },
+  "upcoming": {
+    "title": "Upcoming workouts",
+    "no_sessions": "No scheduled workouts"
+  }
+}

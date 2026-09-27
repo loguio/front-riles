@@ -1,0 +1,26 @@
+{
+  "header": {
+    "section": "MY PROFILE",
+    "greeting": "Hello, {{name}}",
+    "bio": "Your journey, at your pace."
+  },
+  "goal": {
+    "title": "ACTIVE GOAL",
+    "weeks_remaining": "{{count}} week remaining",
+    "weeks_remaining_plural": "{{count}} weeks remaining",
+    "progress": "Progress"
+  },
+  "stats": {
+    "total_distance": "Total distance",
+    "active_weeks": "Active weeks",
+    "completed_races": "Completed races"
+  },
+  "settings": {
+    "title": "Settings & Preferences",
+    "language": "App Language",
+    "language_description": "Choose the application display language.",
+    "restart_onboarding": "Restart Onboarding (Test)",
+    "notifications": "Workout Notifications",
+    "dark_mode": "Dark Mode"
+  }
+}

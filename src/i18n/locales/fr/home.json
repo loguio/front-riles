@@ -1,0 +1,35 @@
+{
+  "header": {
+    "greeting": "Salut {{name}}",
+    "readiness_ready": "PRÊT À COURIR",
+    "readiness_rest": "RÉCUPÉRATION",
+    "readiness_caption": "SCORE DE FORME"
+  },
+  "hero": {
+    "today_session": "AUJOURD'HUI • {{time}}",
+    "rest_day": "JOUR DE REPOS",
+    "rest_day_desc": "Profite de cette journée pour recharger tes batteries et bien t'hydrater.",
+    "start_workout": "Lancer la séance",
+    "pace": "Allure",
+    "target_heart_rate": "FC Cible",
+    "distance": "Distance",
+    "duration": "Durée"
+  },
+  "rpe": {
+    "title": "Comment s'est passée ta séance ?",
+    "subtitle": "RPE (Échelle d'effort perçu)",
+    "saved": "Effort enregistré avec succès !",
+    "saved_badge": "ENREGISTRÉ",
+    "save_button": "Valider mon ressenti"
+  },
+  "stats": {
+    "weekly_mileage": "Volume de la semaine",
+    "target_progress": "Progression de l'objectif",
+    "streak": "{{count}} jour consécutif",
+    "streak_plural": "{{count}} jours consécutifs"
+  },
+  "upcoming": {
+    "title": "Prochaines séances",
+    "no_sessions": "Aucune séance prévue"
+  }
+}

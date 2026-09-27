@@ -1,0 +1,9 @@
+{
+  "title": "Communauté & Sorties",
+  "runs_title": "Sorties en groupe à venir",
+  "challenge_title": "Défi du mois",
+  "join_run": "Rejoindre la sortie",
+  "leave_run": "Se désinscrire",
+  "participants": "{{count}} participant",
+  "participants_plural": "{{count}} participants"
+}

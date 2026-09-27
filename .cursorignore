@@ -1,0 +1,14 @@
+node_modules/
+riles-back/node_modules/
+riles-back/dist/
+.expo/
+dist/
+web-build/
+.cache/
+.design/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+*.log
+.DS_Store
+

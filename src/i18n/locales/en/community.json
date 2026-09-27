@@ -1,0 +1,9 @@
+{
+  "title": "Community & Group Runs",
+  "runs_title": "Upcoming Group Runs",
+  "challenge_title": "Monthly Challenge",
+  "join_run": "Join Run",
+  "leave_run": "Leave Run",
+  "participants": "{{count}} participant",
+  "participants_plural": "{{count}} participants"
+}

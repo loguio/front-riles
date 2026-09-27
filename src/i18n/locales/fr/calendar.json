@@ -1,0 +1,8 @@
+{
+  "title": "Calendrier d'entraînement",
+  "week_label": "Semaine {{week}}",
+  "no_sessions": "Aucun entraînement pour ce jour.",
+  "filter_all": "Tout",
+  "filter_runs": "Courses",
+  "filter_rest": "Repos"
+}

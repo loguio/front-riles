@@ -1,0 +1,54 @@
+{
+  "buttons": {
+    "continue": "Continue",
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "retry": "Retry",
+    "edit": "Edit",
+    "delete": "Delete",
+    "back": "Back",
+    "start": "Start"
+  },
+  "labels": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "success": "Success",
+    "see_all": "See all",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "yesterday": "Yesterday"
+  },
+  "units": {
+    "km": "km",
+    "min_per_km": "/km",
+    "bpm": "bpm",
+    "weeks": "weeks",
+    "days": "days",
+    "hours": "h",
+    "minutes": "min"
+  },
+  "days": {
+    "monday": "Monday",
+    "tuesday": "Tuesday",
+    "wednesday": "Wednesday",
+    "thursday": "Thursday",
+    "friday": "Friday",
+    "saturday": "Saturday",
+    "sunday": "Sunday"
+  },
+  "months": {
+    "january": "January",
+    "february": "February",
+    "march": "March",
+    "april": "April",
+    "may": "May",
+    "june": "June",
+    "july": "July",
+    "august": "August",
+    "september": "September",
+    "october": "October",
+    "november": "November",
+    "december": "December"
+  }
+}

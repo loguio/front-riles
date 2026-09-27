@@ -1,0 +1,8 @@
+{
+  "title": "Training Calendar",
+  "week_label": "Week {{week}}",
+  "no_sessions": "No workouts scheduled for this day.",
+  "filter_all": "All",
+  "filter_runs": "Runs",
+  "filter_rest": "Rest"
+}
