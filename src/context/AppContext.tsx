@@ -9,6 +9,7 @@ import {
   UserProfile,
   WorkoutSession,
   ChatMessage,
+  ChatSuggestedAction,
   QuickPrompt,
   RpeCheckIn,
   CommunityRun,
@@ -23,7 +24,7 @@ import {
   userService,
   communityService,
 } from "../services";
-import { formatDateKey, getWeekNumber } from "../utils/dateUtils";
+import { formatDateKey, getWeekNumber, getDaysOfWeek } from "../utils/dateUtils";
 
 interface AppContextType {
   // State
@@ -44,6 +45,8 @@ interface AppContextType {
   activeMonth: number; // 0-11
   activeYear: number;
   isLoading: boolean;
+  isGeneratingPlan: boolean;
+  multiWeekPlanSummary: string | null;
   errorMessage: string | null;
 
   // Actions
@@ -56,7 +59,10 @@ interface AppContextType {
   applyCoachAction: (
     actionDetails: string,
     dayNumber?: number,
+    suggestedAction?: ChatSuggestedAction,
+    messageId?: string,
   ) => Promise<void>;
+  generateMultiWeekPlan: (weeksToGenerate?: number) => Promise<void>;
   toggleCommunityRun: (runId: string) => Promise<void>;
   completeOnboarding: (data?: Partial<OnboardingState>) => Promise<void>;
   resetOnboarding: () => Promise<void>;
@@ -95,6 +101,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const [activeMonth, setActiveMonthState] = useState<number>(9); // Octobre (index 9)
   const [activeYear, setActiveYearState] = useState<number>(2026);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState<boolean>(false);
+  const [multiWeekPlanSummary, setMultiWeekPlanSummary] = useState<
+    string | null
+  >(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Chargement initial des données connectées au backend
@@ -157,26 +167,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     loadData();
   }, [loadData]);
 
-  // Changement de semaine active avec chargement backend
+  // Changement de semaine active avec chargement backend (sans génération à la volée)
   const setActiveWeek = useCallback(
     async (week: number, year = activeYear) => {
       try {
         setActiveWeekState(week);
         setActiveYearState(year);
 
+        const weekDays = getDaysOfWeek(year, week);
+        if (weekDays.length > 0) {
+          setActiveMonthState(weekDays[0].month);
+        }
+
         const newWeekWorkouts = await workoutService.getWeekWorkouts(
           week,
           year,
         );
         setWorkouts(newWeekWorkouts);
-
-        // Synchronise le mois avec le 1er jour de la semaine
-        if (newWeekWorkouts.length > 0) {
-          const firstDay = newWeekWorkouts[0];
-          const parts = firstDay.dateKey.split("-");
-          const monthIndex = parseInt(parts[1], 10) - 1;
-          setActiveMonthState(monthIndex);
-        }
 
         // Vérifie si le jour sélectionné est dans cette semaine
         const currentInWeek = newWeekWorkouts.find(
@@ -195,6 +202,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             setSelectedDayState(fallbackSession.dayNumber);
             setSelectedDateKey(fallbackSession.dateKey);
             setSelectedWorkout(fallbackSession);
+          } else {
+            // Aucune séance prévue sur cette semaine : on sélectionne le lundi de la semaine et on met selectedWorkout à null
+            if (weekDays.length > 0) {
+              setSelectedDayState(weekDays[0].dayNumber);
+              setSelectedDateKey(weekDays[0].dateKey);
+            }
+            setSelectedWorkout(null);
           }
         }
       } catch (err) {
@@ -306,19 +320,141 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           ...context,
         });
         setChatMessages((prev) => [...prev, coachReply]);
+
+        // Si le coach IA a automatiquement reformulé et enregistré une règle de vie à l'envoi du message, on synchronise le profil localement
+        if (
+          coachReply.suggestedAction?.type === "add_life_rule" &&
+          coachReply.suggestedAction.ruleData
+        ) {
+          const updatedRules = await userService.addRule(
+            coachReply.suggestedAction.ruleData,
+          );
+          setUser((prev) => (prev ? { ...prev, rules: updatedRules } : prev));
+        }
+
+        // Si le coach IA a recalculé dynamiquement la séance ou la semaine complète suite au message de l'utilisateur,
+        // on rafraîchit immédiatement les séances de la semaine et du mois !
+        if (
+          coachReply.suggestedAction?.applied &&
+          coachReply.suggestedAction.type !== "add_life_rule"
+        ) {
+          const [refreshedWeek, refreshedMonth] = await Promise.all([
+            workoutService.getWeekWorkouts(activeWeek, activeYear),
+            workoutService.getMonthWorkouts(activeMonth, activeYear),
+          ]);
+          setWorkouts(refreshedWeek);
+          setMonthWorkouts(refreshedMonth);
+          const updatedSelected = refreshedWeek.find(
+            (w) => w.dateKey === selectedDateKey,
+          );
+          if (updatedSelected) {
+            setSelectedWorkout(updatedSelected);
+          }
+        }
       } catch (err) {
         console.error("Chat error:", err);
       } finally {
         setIsCoachTyping(false);
       }
     },
-    [selectedWorkout?.title, user?.readinessScore, rpeCheckIn?.rating],
+    [
+      selectedWorkout?.title,
+      user?.readinessScore,
+      rpeCheckIn?.rating,
+      activeWeek,
+      activeMonth,
+      activeYear,
+      selectedDateKey,
+    ],
   );
 
-  // Application d'une adaptation IA à la séance courante
-  const applyCoachAction = useCallback(
-    async (actionDetails: string, dayNumber = selectedDay) => {
+  // Génération du plan multi-semaines via le meilleur LLM (LLM_PRO_MODEL)
+  const generateMultiWeekPlan = useCallback(
+    async (weeksToGenerate = 4) => {
       try {
+        setIsGeneratingPlan(true);
+        const result = await workoutService.generateMultiWeekPlan({
+          startWeekNumber: activeWeek,
+          year: activeYear,
+          weeksToGenerate,
+        });
+        setMultiWeekPlanSummary(result.planSummary);
+
+        const [refreshedWeek, refreshedMonth, refreshedChat] =
+          await Promise.all([
+            workoutService.getWeekWorkouts(activeWeek, activeYear),
+            workoutService.getMonthWorkouts(activeMonth, activeYear),
+            chatService.getChatHistory(),
+          ]);
+
+        setWorkouts(refreshedWeek);
+        setMonthWorkouts(refreshedMonth);
+        setChatMessages(refreshedChat);
+
+        const updatedSelected = refreshedWeek.find(
+          (w) => w.dateKey === selectedDateKey,
+        );
+        if (updatedSelected) {
+          setSelectedWorkout(updatedSelected);
+        }
+      } catch (err) {
+        console.error("Failed to generate multi-week plan:", err);
+      } finally {
+        setIsGeneratingPlan(false);
+      }
+    },
+    [activeWeek, activeMonth, activeYear, selectedDateKey],
+  );
+
+  // Application d'une adaptation IA à la séance courante ou ajout d'une règle de vie depuis le chat
+  const applyCoachAction = useCallback(
+    async (
+      actionDetails: string,
+      dayNumber = selectedDay,
+      suggestedAction?: ChatSuggestedAction,
+      messageId?: string,
+    ) => {
+      try {
+        // Cas 1 : Ajout d'une Règle de Vie directement depuis le Chat
+        if (
+          actionDetails === "add_life_rule" ||
+          suggestedAction?.type === "add_life_rule"
+        ) {
+          const ruleToCreate = suggestedAction?.ruleData || {
+            title: "Règle personnalisée",
+            description: suggestedAction?.label || "Ajoutée via le Coach IA",
+            icon: "calendar-lock",
+          };
+
+          const updatedRules = await userService.addRule(ruleToCreate);
+          setUser((prev) => (prev ? { ...prev, rules: updatedRules } : prev));
+
+          setChatMessages((prev) =>
+            prev.map((msg) => {
+              if (
+                (messageId && msg.id === messageId) ||
+                (msg.suggestedAction &&
+                  msg.suggestedAction.type === "add_life_rule" &&
+                  !msg.suggestedAction.applied)
+              ) {
+                return {
+                  ...msg,
+                  suggestedAction: msg.suggestedAction
+                    ? {
+                        ...msg.suggestedAction,
+                        applied: true,
+                        label: `✓ Règle « ${ruleToCreate.title} » ajoutée à ton profil`,
+                      }
+                    : undefined,
+                };
+              }
+              return msg;
+            }),
+          );
+          return;
+        }
+
+        // Cas 2 : Adaptation d'une séance d'entraînement
         const identifier = selectedDateKey || String(dayNumber);
         const updated = await workoutService.adaptSessionWithAI(
           identifier,
@@ -344,16 +480,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         setChatMessages((prev) =>
           prev.map((msg) => {
             if (
-              msg.suggestedAction &&
-              msg.suggestedAction.details === actionDetails
+              (messageId && msg.id === messageId) ||
+              (msg.suggestedAction &&
+                msg.suggestedAction.details === actionDetails)
             ) {
               return {
                 ...msg,
-                suggestedAction: {
-                  ...msg.suggestedAction,
-                  applied: true,
-                  label: "✓ Modification appliquée au calendrier",
-                },
+                suggestedAction: msg.suggestedAction
+                  ? {
+                      ...msg.suggestedAction,
+                      applied: true,
+                      label: "✓ Modification appliquée au calendrier",
+                    }
+                  : undefined,
               };
             }
             return msg;
@@ -378,26 +517,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
-  // Finalisation de l'onboarding
+  // Finalisation de l'onboarding (avec génération automatique du plan multi-semaines côté backend)
   const completeOnboarding = useCallback(
     async (data?: Partial<OnboardingState>) => {
       try {
         await onboardingService.completeOnboarding(data);
         setIsOnboardingCompleted(true);
-        if (data?.mainGoal && user) {
-          const updatedUser = await userService.updateProfile({
-            activeGoal: {
-              ...user.activeGoal,
-              target: data.mainGoal,
-            },
-          });
-          setUser(updatedUser);
-        }
+        const [refreshedProfile, refreshedWeek, refreshedMonth, refreshedChat] =
+          await Promise.all([
+            userService.getProfile(),
+            workoutService.getWeekWorkouts(activeWeek, activeYear),
+            workoutService.getMonthWorkouts(activeMonth, activeYear),
+            chatService.getChatHistory(),
+          ]);
+        setUser(refreshedProfile);
+        setWorkouts(refreshedWeek);
+        setMonthWorkouts(refreshedMonth);
+        setChatMessages(refreshedChat);
       } catch (err) {
         console.error("Failed to complete onboarding:", err);
       }
     },
-    [user],
+    [activeWeek, activeMonth, activeYear],
   );
 
   // Réinitialisation de l'onboarding (pour tests et démos)
@@ -435,6 +576,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         activeMonth,
         activeYear,
         isLoading,
+        isGeneratingPlan,
+        multiWeekPlanSummary,
         errorMessage,
         setSelectedDay,
         setSelectedDateKey: setSelectedDateByKey,
@@ -443,6 +586,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         submitRpe,
         sendChatMessage,
         applyCoachAction,
+        generateMultiWeekPlan,
         toggleCommunityRun,
         completeOnboarding,
         resetOnboarding,

@@ -29,7 +29,11 @@ import {
 import { OnboardingProgress } from "../src/components/onboarding/OnboardingProgress";
 import { useApp } from "../src/context/AppContext";
 import { useAuth, formatAuthError } from "../src/context/AuthContext";
-import { SportType, ConnectedApp } from "../src/types";
+import {
+  SportType,
+  ConnectedApp,
+  GoalReformulationResult,
+} from "../src/types";
 import { onboardingService } from "../src/services";
 import { CONNECTED_APPS_CATALOG } from "../src/mock/mockData";
 
@@ -52,6 +56,9 @@ export default function OnboardingScreen() {
   const [goalText, setGoalText] = useState<string>(
     "Me préparer pour mon premier semi-marathon sans me blesser",
   );
+  const [goalAnalysis, setGoalAnalysis] =
+    useState<GoalReformulationResult | null>(null);
+  const [isReformulating, setIsReformulating] = useState<boolean>(false);
   const [selectedSports, setSelectedSports] = useState<SportType[]>([
     "running",
   ]);
@@ -237,19 +244,37 @@ export default function OnboardingScreen() {
     }
   };
 
-  // Step Navigation avec synchronisation API
+  // Step Navigation avec reformulation IA 100 % automatique en arrière-plan
   const handleNext = async () => {
-    // Synchronise l'étape courante en arrière-plan
-    onboardingService
-      .saveStepData({
-        currentStep: step,
-        authMethod: (authMethod as any) || "apple",
-        mainGoal: goalText,
-        selectedSports,
-        connectedApps: connectedAppIds,
-        selectedPlan,
-      })
-      .catch((e) => console.warn("Background step save:", e));
+    if (step === 2 && goalText.trim()) {
+      onboardingService
+        .reformulateGoal(goalText.trim())
+        .then((analysis) => {
+          setGoalAnalysis(analysis);
+          return onboardingService.saveStepData({
+            currentStep: 2,
+            authMethod: (authMethod as any) || "apple",
+            mainGoal: goalText,
+            selectedSports,
+            connectedApps: connectedAppIds,
+            selectedPlan,
+            extractedRules: analysis.extractedRules,
+          });
+        })
+        .catch((e) => console.warn("Background AI goal reformulation:", e));
+    } else {
+      onboardingService
+        .saveStepData({
+          currentStep: step,
+          authMethod: (authMethod as any) || "apple",
+          mainGoal: goalText,
+          selectedSports,
+          connectedApps: connectedAppIds,
+          selectedPlan,
+          extractedRules: goalAnalysis?.extractedRules,
+        })
+        .catch((e) => console.warn("Background step save:", e));
+    }
 
     if (step < 5) {
       setStep(step + 1);
@@ -275,6 +300,7 @@ export default function OnboardingScreen() {
         connectedApps: connectedAppIds,
         selectedPlan,
         isCompleted: true,
+        extractedRules: goalAnalysis?.extractedRules,
       });
       router.replace("/(tabs)");
     } catch (err) {
@@ -455,19 +481,22 @@ export default function OnboardingScreen() {
                 <TextInput
                   style={styles.textInput}
                   multiline
-                  numberOfLines={2}
-                  maxLength={120}
-                  placeholder="Ex. Me préparer pour mon premier semi-marathon sans me blesser"
+                  numberOfLines={3}
+                  maxLength={180}
+                  placeholder="Ex. Semi de Paris sous 1h45 sans me blesser aux mollets, pas dispo le jeudi"
                   placeholderTextColor={Colors.textMuted}
                   value={goalText}
-                  onChangeText={setGoalText}
+                  onChangeText={(val) => {
+                    setGoalText(val);
+                    if (goalAnalysis) setGoalAnalysis(null);
+                  }}
                 />
               </View>
 
               <View style={styles.lockRow}>
                 <Feather name="lock" size={14} color={Colors.textMuted} />
                 <Text style={styles.lockCaption}>
-                  Deux lignes maximum, juste avec tes mots.
+                  Ton coach IA reformulera et structurera automatiquement ton objectif et tes contraintes à l'envoi.
                 </Text>
               </View>
             </View>
@@ -1552,4 +1581,129 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.textSecondary,
   },
+  aiReformulateBtn: {
+    marginTop: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 11,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.primaryMuted,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+  },
+  aiReformulateBtnText: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+  aiAnalysisCard: {
+    marginTop: Spacing.md,
+    backgroundColor: "#FFF9F7",
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+    gap: Spacing.sm,
+  },
+  aiAnalysisCardDanger: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FCA5A5",
+  },
+  aiAnalysisHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  aiAnalysisBadge: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Colors.primary,
+    letterSpacing: 0.6,
+  },
+  aiReformulatedText: {
+    fontSize: Typography.sizes.base,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    lineHeight: 20,
+  },
+  pacesPreviewRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: 4,
+  },
+  pacePill: {
+    flex: 1,
+    backgroundColor: Colors.card,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  pacePillLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
+  pacePillValue: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: "800",
+    color: Colors.primary,
+  },
+  extractedRulesBox: {
+    marginTop: 4,
+    backgroundColor: Colors.card,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 6,
+  },
+  extractedRulesTitle: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  extractedRuleItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  extractedRuleText: {
+    flex: 1,
+    fontSize: Typography.sizes.xs,
+    color: Colors.textPrimary,
+    lineHeight: 16,
+  },
+  eligibilityMessageText: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  adoptAlternativeBtn: {
+    marginTop: 6,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  adoptAlternativeBtnText: {
+    color: Colors.textWhite,
+    fontSize: Typography.sizes.xs,
+    fontWeight: "800",
+  },
 });
+

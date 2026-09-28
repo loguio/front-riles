@@ -67,7 +67,65 @@ export const chatService = {
       let suggestedAction: ChatMessage["suggestedAction"] = undefined;
       const lowerText = text.toLowerCase();
 
-      if (lowerText.includes("fatigué") || lowerText.includes("fatigue")) {
+      // 1. Urgence médicale (Red Flag)
+      if (
+        lowerText.includes("thoracique") ||
+        lowerText.includes("oppression") ||
+        lowerText.includes("vertige") ||
+        lowerText.includes("malaise") ||
+        lowerText.includes("claquage")
+      ) {
+        replyText =
+          "⚠️ Priorité absolue à ta santé : ces symptômes imposent l'arrêt immédiat de tout effort physique. Consulte un médecin avant toute reprise.";
+        suggestedAction = {
+          type: "reduce_intensity",
+          label: "Appliquer : Repos complet & Sécurité médicale",
+          applied: false,
+          details: "injury_care",
+        };
+      }
+      // 2. Ajout d'une règle de vie directement dans le chat
+      else if (
+        lowerText.includes("règle") ||
+        lowerText.includes("contrainte") ||
+        lowerText.includes("jamais le") ||
+        lowerText.includes("pas courir le") ||
+        lowerText.includes("indisponible")
+      ) {
+        const days = [
+          "lundi",
+          "mardi",
+          "mercredi",
+          "jeudi",
+          "vendredi",
+          "samedi",
+          "dimanche",
+        ];
+        const foundDay = days.find((d) => lowerText.includes(d));
+        const ruleData = foundDay
+          ? {
+              title: "Jours sanctuarisés",
+              description: `Aucune séance programmée le ${foundDay}.`,
+              icon: "calendar-lock",
+            }
+          : {
+              title: "Contrainte personnelle",
+              description: text.trim(),
+              icon: "calendar-lock",
+            };
+
+        replyText = `C'est compris et reformulé automatiquement dans tes règles : « ${ruleData.title} — ${ruleData.description} ». Ton plan en tient désormais compte chaque semaine !`;
+        suggestedAction = {
+          type: "add_life_rule",
+          label: `Règle reformulée & enregistrée : « ${ruleData.title} »`,
+          applied: true,
+          details: "add_life_rule",
+          ruleData,
+        };
+      } else if (
+        lowerText.includes("fatigué") ||
+        lowerText.includes("fatigue")
+      ) {
         replyText =
           "C'est noté Marius. Quand le corps est fatigué, insister sur du seuil augmente le risque de blessure. Je te propose d'alléger la séance de ce soir.";
         suggestedAction = {

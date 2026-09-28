@@ -43,7 +43,6 @@ export default function CalendarScreen() {
     activeWeek,
     activeMonth,
     activeYear,
-    isLoading,
     setSelectedDay,
     setActiveWeek,
     setActiveMonth,
@@ -54,6 +53,17 @@ export default function CalendarScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [isChangingWeek, setIsChangingWeek] = useState(false);
 
+  const formatDurationSec = (sec?: number, fallback?: string): string => {
+    if (!sec || sec <= 0) return fallback || "—";
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h > 0) {
+      return `${h}h${String(m).padStart(2, "0")}`;
+    }
+    return s > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${m} min`;
+  };
+
   // Dynamic 7 days of the active week
   const weekCalendarDays = getDaysOfWeek(activeYear, activeWeek);
 
@@ -61,6 +71,12 @@ export default function CalendarScreen() {
   const monthGridData = getMonthGrid(activeYear, activeMonth);
 
   const currentSession = selectedWorkout;
+  const isDoneSession = currentSession?.status === "done";
+  const selectedDayMeta = weekCalendarDays.find(
+    (d) =>
+      d.dateKey === selectedDateKey ||
+      (d.dayNumber === selectedDay && d.month === activeMonth),
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -182,6 +198,7 @@ export default function CalendarScreen() {
             const session = workouts.find((w) => w.dateKey === item.dateKey);
             const isDone = session?.status === "done";
             const isRest = session?.isRestDay || session?.status === "rest";
+            const hasUpcomingWorkout = Boolean(session && !isDone && !isRest);
 
             return (
               <TouchableOpacity
@@ -215,10 +232,10 @@ export default function CalendarScreen() {
                     <View style={styles.selectedWhiteDot} />
                   ) : isDone ? (
                     <Feather name="check" size={14} color={Colors.success} />
-                  ) : isRest ? (
-                    <Text style={styles.dashText}>—</Text>
-                  ) : (
+                  ) : hasUpcomingWorkout ? (
                     <View style={styles.upcomingDot} />
+                  ) : (
+                    <Text style={styles.dashText}>—</Text>
                   )}
                 </View>
               </TouchableOpacity>
@@ -363,12 +380,24 @@ export default function CalendarScreen() {
       {/* 3. Selected Day Session Section Header */}
       <View style={styles.sessionSectionHeader}>
         <Text style={styles.sessionDateHeader}>
-          {currentSession?.fullDateLabel || `JOUR ${selectedDay}`}
+          {currentSession?.fullDateLabel ||
+            selectedDayMeta?.fullDateLabel ||
+            `JOUR ${selectedDay}`}
         </Text>
         <View style={styles.sessionStatusRow}>
           <Text style={styles.sessionSectionTitle}>Séance au programme</Text>
           <View style={styles.upcomingBadgePill}>
-            {currentSession?.status === "done" ? (
+            {!currentSession ? (
+              <>
+                <View
+                  style={[
+                    styles.statusDot,
+                    { backgroundColor: Colors.textMuted },
+                  ]}
+                />
+                <Text style={styles.upcomingBadgeText}>Rien de prévu</Text>
+              </>
+            ) : currentSession.status === "done" ? (
               <>
                 <View
                   style={[
@@ -385,7 +414,7 @@ export default function CalendarScreen() {
                   Réalisée
                 </Text>
               </>
-            ) : currentSession?.isRestDay ? (
+            ) : currentSession.isRestDay ? (
               <>
                 <View
                   style={[
@@ -405,99 +434,237 @@ export default function CalendarScreen() {
         </View>
       </View>
 
-      {/* 4. Session Detail Card */}
-      <Card style={styles.sessionCard}>
-        {/* Top category & title */}
-        <View style={styles.sessionTopRow}>
-          <View style={styles.sessionIconBox}>
-            <MaterialCommunityIcons
-              name={currentSession?.isRestDay ? "sleep" : "heart-pulse"}
-              size={24}
-              color={Colors.primary}
-            />
-          </View>
-          <View style={styles.sessionCategoryBox}>
-            <Text style={styles.sessionCategoryText}>
-              {currentSession?.category || "SÉANCE QUALITATIVE"}
-            </Text>
-            <Text style={styles.sessionTitle}>
-              {currentSession?.title || "Sortie Seuil & Allure Cible"}
-            </Text>
-          </View>
-        </View>
-
-        {/* 3 Metrics Row */}
-        {!currentSession?.isRestDay && (
-          <View style={styles.metricsRow}>
-            <View style={styles.metricItem}>
-              <Feather name="clock" size={18} color={Colors.textSecondary} />
-              <Text style={styles.metricValue}>
-                {currentSession?.duration || "1h15"}
+      {/* 4. Session Detail Card (ou état vide si aucune séance n'est prévue pour cette date) */}
+      {!currentSession ? (
+        <Card style={styles.sessionCard}>
+          <View style={styles.sessionTopRow}>
+            <View
+              style={[
+                styles.sessionIconBox,
+                { backgroundColor: Colors.badgeGray },
+              ]}
+            >
+              <Feather name="calendar" size={22} color={Colors.textSecondary} />
+            </View>
+            <View style={styles.sessionCategoryBox}>
+              <Text style={styles.sessionCategoryText}>PLANIFICATION</Text>
+              <Text style={styles.sessionTitle}>
+                Aucune séance prévue pour le moment
               </Text>
             </View>
-            <View style={styles.metricItem}>
+          </View>
+          <Text style={styles.sessionAiNoteText}>
+            Il n'y a aucune séance programmée à cette date pour l'instant.
+          </Text>
+        </Card>
+      ) : (
+        <Card style={styles.sessionCard}>
+          {/* Top category & title */}
+          <View style={styles.sessionTopRow}>
+            <View style={styles.sessionIconBox}>
               <MaterialCommunityIcons
-                name="run"
-                size={20}
-                color={Colors.textSecondary}
+                name={currentSession.isRestDay ? "sleep" : "heart-pulse"}
+                size={24}
+                color={Colors.primary}
               />
-              <Text style={styles.metricValue}>
-                {currentSession?.distance || "14 km"}
-              </Text>
             </View>
-            <View style={styles.metricItem}>
-              <Feather
-                name="trending-up"
-                size={18}
-                color={Colors.textSecondary}
-              />
-              <Text style={styles.metricValue}>
-                {currentSession?.targetPace || "4:50/km"}
+            <View style={styles.sessionCategoryBox}>
+              <Text style={styles.sessionCategoryText}>
+                {currentSession.category}
               </Text>
+              <Text style={styles.sessionTitle}>{currentSession.title}</Text>
             </View>
           </View>
-        )}
 
-        <View style={styles.cardDivider} />
+          {/* 3 Metrics Row: affiche les vraies données exécutées si la séance est passée (done), sinon les cibles prévues */}
+          {!currentSession.isRestDay && (
+            <View style={styles.metricsRow}>
+              <View style={styles.metricItem}>
+                <Feather
+                  name="clock"
+                  size={18}
+                  color={isDoneSession ? Colors.success : Colors.textSecondary}
+                />
+                <Text style={styles.metricValue}>
+                  {isDoneSession && currentSession.actualDurationSec
+                    ? formatDurationSec(
+                        currentSession.actualDurationSec,
+                        currentSession.duration,
+                      )
+                    : currentSession.duration}
+                </Text>
+              </View>
+              <View style={styles.metricItem}>
+                <MaterialCommunityIcons
+                  name="run"
+                  size={20}
+                  color={isDoneSession ? Colors.success : Colors.textSecondary}
+                />
+                <Text style={styles.metricValue}>
+                  {isDoneSession &&
+                  currentSession.actualDistanceKm !== undefined
+                    ? `${currentSession.actualDistanceKm.toFixed(1).replace(".", ",")} km`
+                    : currentSession.distance}
+                </Text>
+              </View>
+              <View style={styles.metricItem}>
+                <Feather
+                  name="trending-up"
+                  size={18}
+                  color={isDoneSession ? Colors.success : Colors.textSecondary}
+                />
+                <Text style={styles.metricValue}>
+                  {isDoneSession && currentSession.actualPace
+                    ? currentSession.actualPace
+                    : currentSession.targetPace}
+                </Text>
+              </View>
+            </View>
+          )}
 
-        {/* Effort Structure */}
-        {currentSession?.effortBlocks && (
-          <EffortStructure blocks={currentSession.effortBlocks} />
-        )}
+          {/* Encart complet des données réelles de la séance passée (Strava / Garmin / Apple Santé) */}
+          {isDoneSession && !currentSession.isRestDay && (
+            <View style={styles.realSessionBox}>
+              <View style={styles.realSessionHeaderRow}>
+                <View style={styles.realSessionTitleRow}>
+                  <Feather
+                    name="check-circle"
+                    size={15}
+                    color={Colors.successText}
+                  />
+                  <Text style={styles.realSessionHeaderTitle}>
+                    DONNÉES RÉELLES DE LA SÉANCE
+                  </Text>
+                </View>
+                {currentSession.sourceProvider && (
+                  <View style={styles.sourceProviderBadge}>
+                    <Text style={styles.sourceProviderText}>
+                      {currentSession.sourceProvider === "strava"
+                        ? "STRAVA"
+                        : currentSession.sourceProvider === "garmin"
+                          ? "GARMIN"
+                          : "APPLE SANTÉ"}
+                    </Text>
+                  </View>
+                )}
+              </View>
 
-        <View style={styles.cardDivider} />
+              <View style={styles.realMetricsGrid}>
+                <View style={styles.realMetricCell}>
+                  <Text style={styles.realMetricLabel}>Distance réelle</Text>
+                  <Text style={styles.realMetricMain}>
+                    {currentSession.actualDistanceKm !== undefined
+                      ? `${currentSession.actualDistanceKm.toFixed(1).replace(".", ",")} km`
+                      : currentSession.distance || "—"}
+                  </Text>
+                  <Text style={styles.realMetricSub}>
+                    Prévu : {currentSession.distance || "—"}
+                  </Text>
+                </View>
 
-        {/* Target Heart Rate Zone */}
-        {currentSession && !currentSession.isRestDay && (
-          <HeartRateZoneBar
-            label={currentSession.targetZoneLabel}
-            bpm={currentSession.targetZoneBpm}
-            pinPositionPercent={currentSession.pinPositionPercent}
-            segments={currentSession.targetZoneSegments}
-          />
-        )}
+                <View style={styles.realMetricCell}>
+                  <Text style={styles.realMetricLabel}>Allure réelle</Text>
+                  <Text style={styles.realMetricMain}>
+                    {currentSession.actualPace ||
+                      currentSession.targetPace ||
+                      "—"}
+                  </Text>
+                  <Text style={styles.realMetricSub}>
+                    Cible : {currentSession.targetPace || "—"}
+                  </Text>
+                </View>
 
-        {/* AI Note */}
-        {currentSession?.aiAdjustmentNote && (
-          <View style={styles.sessionAiNoteBox}>
-            <Ionicons name="sparkles" size={16} color={Colors.primary} />
-            <Text style={styles.sessionAiNoteText}>
-              {currentSession.aiAdjustmentNote}
-            </Text>
-          </View>
-        )}
-      </Card>
+                <View style={styles.realMetricCell}>
+                  <Text style={styles.realMetricLabel}>Cardio mesuré</Text>
+                  <Text style={styles.realMetricMain}>
+                    {currentSession.actualAvgHeartRate
+                      ? `${currentSession.actualAvgHeartRate} bpm`
+                      : "—"}
+                  </Text>
+                  <Text style={styles.realMetricSub}>
+                    {currentSession.actualMaxHeartRate
+                      ? `Max ${currentSession.actualMaxHeartRate} bpm`
+                      : currentSession.targetZoneBpm || ""}
+                  </Text>
+                </View>
+              </View>
 
-      {/* 5. Coach Adapter Card (Besoin d'adapter ?) */}
+              {(currentSession.actualElevationGain !== undefined ||
+                currentSession.actualCadence !== undefined ||
+                currentSession.actualCalories !== undefined ||
+                currentSession.tss !== undefined) && (
+                <View style={styles.realSecondaryRow}>
+                  {currentSession.actualElevationGain !== undefined && (
+                    <Text style={styles.realSecondaryTag}>
+                      ⛰️ +{currentSession.actualElevationGain} m D+
+                    </Text>
+                  )}
+                  {currentSession.actualCadence !== undefined && (
+                    <Text style={styles.realSecondaryTag}>
+                      👟 {currentSession.actualCadence} spm
+                    </Text>
+                  )}
+                  {currentSession.actualCalories !== undefined && (
+                    <Text style={styles.realSecondaryTag}>
+                      🔥 {currentSession.actualCalories} kcal
+                    </Text>
+                  )}
+                  {currentSession.tss !== undefined && (
+                    <Text style={styles.realSecondaryTag}>
+                      ⚡ Charge : {currentSession.tss} TSS
+                    </Text>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+
+          <View style={styles.cardDivider} />
+
+          {/* Effort Structure */}
+          {currentSession.effortBlocks && (
+            <EffortStructure blocks={currentSession.effortBlocks} />
+          )}
+
+          <View style={styles.cardDivider} />
+
+          {/* Target Heart Rate Zone */}
+          {!currentSession.isRestDay && (
+            <HeartRateZoneBar
+              label={currentSession.targetZoneLabel}
+              bpm={
+                isDoneSession && currentSession.actualAvgHeartRate
+                  ? `${currentSession.actualAvgHeartRate} bpm moy (cible ${currentSession.targetZoneBpm})`
+                  : currentSession.targetZoneBpm
+              }
+              pinPositionPercent={currentSession.pinPositionPercent}
+              segments={currentSession.targetZoneSegments}
+            />
+          )}
+
+          {/* AI Note */}
+          {currentSession.aiAdjustmentNote && (
+            <View style={styles.sessionAiNoteBox}>
+              <Ionicons name="sparkles" size={16} color={Colors.primary} />
+              <Text style={styles.sessionAiNoteText}>
+                {currentSession.aiAdjustmentNote}
+              </Text>
+            </View>
+          )}
+        </Card>
+      )}
+
+      {/* 5. Coach Adapter Card (Recalcul dynamique simple via message au coach) */}
       <Card variant="peach" style={styles.adaptCard}>
         <View style={styles.adaptHeaderRow}>
           <View style={styles.adaptIconCircle}>
             <Ionicons name="chatbubble" size={22} color={Colors.textWhite} />
           </View>
           <View style={styles.adaptHeaderTextCol}>
-            <Text style={styles.adaptTitle}>Besoin d'adapter ?</Text>
+            <Text style={styles.adaptTitle}>Un imprévu ou un problème ?</Text>
             <Text style={styles.adaptSubtitle}>
-              Un imprévu, fatigue ou manque de temps ?
+              Fatigue, manque de temps, gêne ou changement de planning : écris
+              un petit message au coach.
             </Text>
           </View>
         </View>
@@ -508,17 +675,18 @@ export default function CalendarScreen() {
           onPress={() => router.push("/chat" as any)}
         >
           <Ionicons
-            name="chatbubble-outline"
+            name="chatbubble-ellipses-outline"
             size={20}
             color={Colors.textWhite}
           />
           <Text style={styles.adaptButtonText}>
-            Discuter avec le coach pour adapter
+            J'ai un problème / J'en parle au coach
           </Text>
         </TouchableOpacity>
 
         <Text style={styles.adaptFooterCaption}>
-          L'IA rééquilibre ta semaine en langage naturel.
+          Le coach recalcule automatiquement ta séance et rééquilibre ta
+          semaine complète.
         </Text>
       </Card>
     </ScrollView>
@@ -558,6 +726,60 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: "800",
     color: Colors.textPrimary,
+  },
+  headerRightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  generatePlanPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: Colors.primaryMuted,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.full,
+  },
+  generatePlanPillText: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: "800",
+    color: Colors.primary,
+  },
+  planPresentationCard: {
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    backgroundColor: "#FFF9F7",
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+  },
+  planPresentationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
+  },
+  planPresentationBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  planPresentationBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: Colors.textWhite,
+    letterSpacing: 0.6,
+  },
+  planPresentationText: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textPrimary,
+    lineHeight: 20,
+    fontWeight: "500",
   },
   avatar: {
     width: 44,
@@ -858,6 +1080,86 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.md,
     fontWeight: "700",
     color: Colors.textPrimary,
+  },
+  realSessionBox: {
+    marginTop: Spacing.md,
+    backgroundColor: Colors.successLight,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  realSessionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
+  },
+  realSessionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  realSessionHeaderTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Colors.successText,
+    letterSpacing: 0.6,
+  },
+  sourceProviderBadge: {
+    backgroundColor: "#065F46",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+  },
+  sourceProviderText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: Colors.textWhite,
+    letterSpacing: 0.5,
+  },
+  realMetricsGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: Spacing.sm,
+  },
+  realMetricCell: {
+    flex: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.sm,
+  },
+  realMetricLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+    marginBottom: 2,
+  },
+  realMetricMain: {
+    fontSize: Typography.sizes.md,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+  },
+  realMetricSub: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  realSecondaryRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: Spacing.sm,
+  },
+  realSecondaryTag: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.successText,
+    backgroundColor: "rgba(255, 255, 255, 0.7)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.md,
   },
   cardDivider: {
     height: 1,

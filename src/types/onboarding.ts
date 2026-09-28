@@ -10,6 +10,37 @@ export interface ConnectedApp {
   isConnected: boolean;
 }
 
+export interface ExtractedRuleItem {
+  title: string;
+  description: string;
+  icon: string;
+}
+
+export interface GoalReformulationResult {
+  reformulatedGoal: string;
+  extractedGoal: {
+    title: string;
+    target: string;
+    raceDate: string;
+    weeksRemaining: number;
+    distanceKm?: number;
+  };
+  extractedRules: ExtractedRuleItem[];
+  targetPaces: {
+    easyPaceZ2: string;
+    marathonPaceZ3: string;
+    thresholdPaceZ4: string;
+    intervalPaceZ5: string;
+    targetRacePace: string;
+  };
+  eligibility: {
+    status: "ELIGIBLE" | "WARNING" | "UNREALISTIC_DANGEROUS";
+    isRealistic: boolean;
+    pedagogicalMessage: string;
+    suggestedAlternative?: string;
+  };
+}
+
 export interface OnboardingState {
   currentStep: number; // 1 to 5
   authMethod: AuthProvider | null;
@@ -19,4 +50,5 @@ export interface OnboardingState {
   connectedApps: string[];
   selectedPlan: "basic" | "pro";
   isCompleted: boolean;
+  extractedRules?: ExtractedRuleItem[];
 }

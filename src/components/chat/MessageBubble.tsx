@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
-import { ChatMessage } from "../../types";
+import { ChatMessage, ChatSuggestedAction } from "../../types";
 import {
   Colors,
   Spacing,
@@ -12,7 +12,11 @@ import {
 
 interface MessageBubbleProps {
   message: ChatMessage;
-  onApplyAction?: (actionDetails: string) => void;
+  onApplyAction?: (
+    actionDetails: string,
+    suggestedAction?: ChatSuggestedAction,
+    messageId?: string,
+  ) => void;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -56,7 +60,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             {message.text}
           </Text>
 
-          {/* Action button if coach proposed an adjustment */}
+          {/* Action button if coach proposed an adjustment or a new life rule */}
           {message.suggestedAction && (
             <TouchableOpacity
               style={[
@@ -65,8 +69,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               ]}
               disabled={message.suggestedAction.applied}
               onPress={() => {
-                if (message.suggestedAction?.details && onApplyAction) {
-                  onApplyAction(message.suggestedAction.details);
+                if (message.suggestedAction && onApplyAction) {
+                  onApplyAction(
+                    message.suggestedAction.details ||
+                      message.suggestedAction.type,
+                    message.suggestedAction,
+                    message.id,
+                  );
                 }
               }}
               activeOpacity={0.85}

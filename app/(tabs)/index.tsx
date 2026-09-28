@@ -30,6 +30,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const {
     user,
+    workouts,
     selectedWorkout,
     rpeCheckIn,
     submitRpe,
@@ -74,6 +75,10 @@ export default function HomeScreen() {
   };
 
   const heroSession = selectedWorkout;
+  const isHeroDone = heroSession?.status === "done";
+  const lastCompletedSession =
+    [...workouts].reverse().find((w) => w.status === "done" && !w.isRestDay) ||
+    null;
 
   if (isLoading && !user) {
     return <DashboardSkeleton />;
@@ -138,7 +143,9 @@ export default function HomeScreen() {
 
         <View style={styles.heroTopRow}>
           <Text style={styles.heroTimeLabel}>
-            {heroSession?.timeLabel || "AUJOURD'HUI • 18:30"}
+            {isHeroDone
+              ? `SÉANCE RÉALISÉE${heroSession?.sourceProvider ? ` • ${heroSession.sourceProvider.toUpperCase()}` : ""}`
+              : heroSession?.timeLabel || "AUJOURD'HUI • 18:30"}
           </Text>
           <TouchableOpacity
             style={styles.heroLightningBtn}
@@ -153,9 +160,31 @@ export default function HomeScreen() {
           {heroSession?.title || "Sortie Seuil & Allure Cible"}
         </Text>
 
-        {/* Tags row */}
+        {/* Tags row: affiche les vraies données exécutées si la séance est terminée (done), sinon les cibles */}
         <View style={styles.heroTagsRow}>
-          {heroSession?.tags && heroSession.tags.length > 0 ? (
+          {isHeroDone && heroSession?.actualDistanceKm !== undefined ? (
+            <>
+              <Badge
+                label={`Réalisé : ${heroSession.actualDistanceKm.toFixed(1).replace(".", ",")} km`}
+                variant="heroTag"
+                style={styles.heroTagItem}
+              />
+              {heroSession.actualPace && (
+                <Badge
+                  label={`Allure réelle : ${heroSession.actualPace}`}
+                  variant="heroTag"
+                  style={styles.heroTagItem}
+                />
+              )}
+              {heroSession.actualAvgHeartRate && (
+                <Badge
+                  label={`FC moy : ${heroSession.actualAvgHeartRate} bpm`}
+                  variant="heroTag"
+                  style={styles.heroTagItem}
+                />
+              )}
+            </>
+          ) : heroSession?.tags && heroSession.tags.length > 0 ? (
             heroSession.tags.map((tag, idx) => (
               <Badge
                 key={idx}
@@ -185,7 +214,7 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* White CTA: Adapter avec l'IA */}
+        {/* White CTA: Bouton général vers le Coach */}
         <TouchableOpacity
           style={styles.heroWhiteBtn}
           activeOpacity={0.9}
@@ -197,16 +226,23 @@ export default function HomeScreen() {
               size={20}
               color={Colors.primary}
             />
-            <Text style={styles.heroWhiteBtnText}>Adapter avec l'IA</Text>
+            <Text style={styles.heroWhiteBtnText}>
+              J'ai un problème / J'en parle au coach
+            </Text>
           </View>
           <Feather name="chevron-right" size={20} color={Colors.primary} />
         </TouchableOpacity>
       </View>
 
-      {/* 3. Check-in Card (Ressenti dernière sortie) */}
+      {/* 3. Check-in Card (Ressenti dernière sortie avec vraies données) */}
       <Card style={styles.checkInCard}>
         <View style={styles.checkInHeaderRow}>
-          <Text style={styles.checkInSubtitle}>CHECK-IN • HIER, 10 KM</Text>
+          <Text style={styles.checkInSubtitle}>
+            {lastCompletedSession &&
+            lastCompletedSession.actualDistanceKm !== undefined
+              ? `DERNIÈRE SÉANCE • ${lastCompletedSession.actualDistanceKm.toFixed(1).replace(".", ",")} KM À ${lastCompletedSession.actualPace || lastCompletedSession.targetPace}${lastCompletedSession.actualAvgHeartRate ? ` (${lastCompletedSession.actualAvgHeartRate} BPM)` : ""}`
+              : "CHECK-IN • DERNIÈRE SORTIE RÉALISÉE"}
+          </Text>
           <View style={styles.pulseIconBox}>
             <MaterialCommunityIcons
               name="heart-pulse"

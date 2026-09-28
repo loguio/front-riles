@@ -20,10 +20,9 @@ import {
   Typography,
 } from "../src/constants/theme";
 import { MessageBubble } from "../src/components/chat/MessageBubble";
-import { QuickSuggestions } from "../src/components/chat/QuickSuggestions";
 import { ChatInput } from "../src/components/chat/ChatInput";
 import { useApp } from "../src/context/AppContext";
-import { QuickPrompt } from "../src/types";
+import { ChatSuggestedAction } from "../src/types";
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
@@ -32,7 +31,6 @@ export default function ChatScreen() {
 
   const {
     chatMessages,
-    quickPrompts,
     isCoachTyping,
     selectedWorkout,
     sendChatMessage,
@@ -52,16 +50,17 @@ export default function ChatScreen() {
     });
   };
 
-  const handleSelectPrompt = (prompt: QuickPrompt) => {
-    sendChatMessage(prompt.message, {
-      activeSessionTitle: selectedWorkout?.title,
-    });
-  };
-
-  const handleApplyAction = async (actionDetails: string) => {
-    if (selectedWorkout) {
-      await applyCoachAction(actionDetails, selectedWorkout.dayNumber);
-    }
+  const handleApplyAction = async (
+    actionDetails: string,
+    suggestedAction?: ChatSuggestedAction,
+    messageId?: string,
+  ) => {
+    await applyCoachAction(
+      actionDetails,
+      selectedWorkout?.dayNumber,
+      suggestedAction,
+      messageId,
+    );
   };
 
   return (
@@ -90,7 +89,7 @@ export default function ChatScreen() {
               <View style={styles.onlineStatusRow}>
                 <View style={styles.onlineDot} />
                 <Text style={styles.onlineStatusText}>
-                  En ligne • Prêt à adapter
+                  En ligne • Recalcul dynamique de ta semaine
                 </Text>
               </View>
             </View>
@@ -144,23 +143,20 @@ export default function ChatScreen() {
               <View style={styles.typingBubble}>
                 <ActivityIndicator size="small" color={Colors.primary} />
                 <Text style={styles.typingText}>
-                  Le coach analyse tes paramètres...
+                  Le coach analyse ton message et rééquilibre ta semaine...
                 </Text>
               </View>
             </View>
           )}
         </ScrollView>
 
-        {/* 4. Quick Suggestions */}
-        <QuickSuggestions
-          prompts={quickPrompts}
-          onSelectPrompt={handleSelectPrompt}
-          disabled={isCoachTyping}
-        />
-
-        {/* 5. Input Bar */}
+        {/* 4. Input Bar (sans boutons automatiques rigides : l'utilisateur écrit son message librement) */}
         <View style={{ paddingBottom: Math.max(insets.bottom, 12) }}>
-          <ChatInput onSend={handleSend} disabled={isCoachTyping} />
+          <ChatInput
+            onSend={handleSend}
+            disabled={isCoachTyping}
+            placeholder="Explique ton problème, imprévu ou règle au coach..."
+          />
         </View>
       </View>
     </KeyboardAvoidingView>

@@ -31,11 +31,35 @@ export interface WorkoutSession {
   effortBlocks: EffortBlock[];
   tags?: string[];
   aiAdjustmentNote?: string;
+  // Données complètes de la vraie séance réalisée (issues de Strava / Garmin / Apple Santé)
+  externalActivityId?: string;
+  sourceProvider?: "strava" | "garmin" | "apple_health" | string;
+  actualDistanceKm?: number;
+  actualDurationSec?: number;
+  actualPace?: string;
+  actualAvgHeartRate?: number;
+  actualMaxHeartRate?: number;
+  actualElevationGain?: number;
+  actualCalories?: number;
+  actualCadence?: number;
+  actualSplitsJson?: any;
+  tss?: number;
+  completedAt?: string;
+}
+
+export interface MultiWeekPlanResponse {
+  success: boolean;
+  planSummary: string;
+  weeksGenerated: number;
+  modelUsed: string;
+  workouts: WorkoutSession[];
 }
 
 export interface RpeCheckIn {
   rating: number; // 1-10
   feedbackLabel: string; // 'Très facile', 'Modéré', 'Difficile', 'À fond'
+  textComment?: string;
+  perceivedLegs?: string;
   submittedAt?: string;
   aiPreservationMessage: string;
 }
