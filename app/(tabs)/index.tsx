@@ -21,6 +21,7 @@ import {
 import { Card } from "../../src/components/ui/Card";
 import { Badge } from "../../src/components/ui/Badge";
 import { EffortSlider } from "../../src/components/ui/Slider";
+import { DashboardSkeleton } from "../../src/components/ui/DashboardSkeleton";
 import { useApp } from "../../src/context/AppContext";
 import { useTranslation } from "react-i18next";
 
@@ -75,12 +76,7 @@ export default function HomeScreen() {
   const heroSession = selectedWorkout;
 
   if (isLoading && !user) {
-    return (
-      <View style={[styles.loadingScreen, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Connexion au serveur Riles...</Text>
-      </View>
-    );
+    return <DashboardSkeleton />;
   }
 
   return (
@@ -113,7 +109,7 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {/* 1. Header (Avatar, Date, Greeting, Readiness) */}
+      {/* 1. Header (Avatar, Date, Greeting) */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
@@ -131,23 +127,6 @@ export default function HomeScreen() {
               {t("home:header.greeting", { name: user?.name || "Marius" })}
             </Text>
           </View>
-        </View>
-
-        <View style={styles.readinessWrapper}>
-          <View style={styles.readinessBadge}>
-            <Ionicons
-              name="heart-circle-outline"
-              size={18}
-              color={Colors.primary}
-            />
-            <Text style={styles.readinessPercent}>
-              {user?.readinessScore || 88}%
-            </Text>
-            <View style={styles.greenDot} />
-          </View>
-          <Text style={styles.readinessCaption}>
-            {t("home:header.readiness_ready")}
-          </Text>
         </View>
       </View>
 

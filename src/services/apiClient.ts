@@ -1,4 +1,12 @@
-import { getBaseUrl, getUserId, getAuthToken, API_CONFIG } from "../config/api";
+import {
+  getBaseUrl,
+  getUserId,
+  getAuthToken,
+  setAuthToken,
+  setUserId,
+  API_CONFIG,
+} from "../config/api";
+import { supabase } from "../config/supabase";
 
 export class ApiError extends Error {
   public status: number;
@@ -26,7 +34,7 @@ export interface RequestOptions extends RequestInit {
 
 class ApiClient {
   /**
-   * Effectue un appel HTTP générique typé
+   * Effectue un appel HTTP générique typé avec injection automatique du Bearer Token Supabase
    */
   async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const {
@@ -51,15 +59,34 @@ class ApiClient {
       }
     }
 
-    // Préparation des headers
+    // Récupération dynamique du Bearer Token Supabase le plus frais
+    let token = getAuthToken();
+    let currentUid = getUserId();
+
+    if (!token) {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (data?.session?.access_token) {
+          token = data.session.access_token;
+          setAuthToken(token);
+          if (data.session.user?.id) {
+            currentUid = data.session.user.id;
+            setUserId(currentUid);
+          }
+        }
+      } catch (authErr) {
+        // En cas d'erreur lors de la lecture locale de session, on continue sans bloquer
+      }
+    }
+
+    // Préparation des headers avec Bearer Token & User ID
     const requestHeaders: Record<string, string> = {
       ...API_CONFIG.headers,
-      "x-user-id": getUserId(),
+      "x-user-id": currentUid,
       ...(headers as Record<string, string>),
     };
 
-    const token = getAuthToken();
-    if (token) {
+    if (token && !requestHeaders["Authorization"]) {
       requestHeaders["Authorization"] = `Bearer ${token}`;
     }
 
@@ -76,7 +103,7 @@ class ApiClient {
 
       clearTimeout(timeoutId);
 
-      // Traitement de la réponse JSON ou vide
+      // Traitement de la réponse JSON ou texte
       const contentType = response.headers.get("content-type");
       const isJson = contentType && contentType.includes("application/json");
       const responseData = isJson
@@ -115,7 +142,8 @@ class ApiClient {
       }
 
       throw new ApiError(
-        error.message || "Erreur de connexion réseau avec le serveur NestJS",
+        error.message ||
+          `Erreur de connexion réseau avec le serveur NestJS (${url})`,
         0,
         null,
         true,

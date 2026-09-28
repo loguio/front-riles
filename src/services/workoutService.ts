@@ -6,6 +6,7 @@ import { getDaysOfWeek, formatDateKey, getMonthGrid } from "../utils/dateUtils";
 export const workoutService = {
   /**
    * Récupère les 7 séances d'une semaine spécifique depuis l'API NestJS
+   * Bascule de manière transparente sur les données mockées en cas d'erreur de connexion
    */
   async getWeekWorkouts(
     weekNumber = 42,
@@ -18,10 +19,10 @@ export const workoutService = {
       if (Array.isArray(data) && data.length > 0) {
         return data;
       }
-      throw new Error("Empty week workouts from API");
+      throw new Error("Aucune séance renvoyée par l'API pour la semaine");
     } catch (error) {
       console.warn(
-        `API workoutService.getWeekWorkouts(${weekNumber}, ${year}) fallback:`,
+        `[Riles API Fallback] Impossible de contacter le backend NestJS (GET /workouts/week?week=${weekNumber}&year=${year}). Utilisation des séances locales :`,
         error,
       );
       const days = getDaysOfWeek(year, weekNumber);
@@ -57,10 +58,10 @@ export const workoutService = {
       if (data && typeof data === "object" && Object.keys(data).length > 0) {
         return data;
       }
-      throw new Error("Empty month workouts from API");
+      throw new Error("Aucune séance mensuelle renvoyée par l'API");
     } catch (error) {
       console.warn(
-        `API workoutService.getMonthWorkouts(${month}, ${year}) fallback:`,
+        `[Riles API Fallback] Impossible de contacter le backend NestJS (GET /workouts/month?month=${month}&year=${year}). Utilisation des séances locales :`,
         error,
       );
       const grid = getMonthGrid(year, month);
@@ -93,7 +94,7 @@ export const workoutService = {
       return await apiClient.get<WorkoutSession>(`workouts/${dateKey}`);
     } catch (error) {
       console.warn(
-        `API workoutService.getWorkoutByDateKey(${dateKey}) fallback:`,
+        `[Riles API Fallback] Impossible de contacter le backend NestJS (GET /workouts/${dateKey}).`,
         error,
       );
       return null;
@@ -126,7 +127,7 @@ export const workoutService = {
       );
     } catch (error) {
       console.warn(
-        `API workoutService.updateWorkout(${identifier}) fallback:`,
+        `[Riles API Fallback] Impossible de contacter le backend NestJS (PATCH /workouts/${identifier}).`,
         error,
       );
       throw error;
@@ -146,7 +147,10 @@ export const workoutService = {
         workoutId,
       });
     } catch (error) {
-      console.warn("API workoutService.submitRpeCheckIn fallback:", error);
+      console.warn(
+        "[Riles API Fallback] Impossible de contacter le backend NestJS (POST /workouts/rpe). Calcul local du feedback IA :",
+        error,
+      );
       let feedbackLabel = "Modéré";
       let aiPreservationMessage =
         "L'IA a ajusté le seuil pour préserver tes mollets aujourd'hui.";
@@ -194,7 +198,7 @@ export const workoutService = {
       );
     } catch (error) {
       console.warn(
-        `API workoutService.adaptSessionWithAI(${identifier}, ${adaptationType}) fallback:`,
+        `[Riles API Fallback] Impossible de contacter le backend NestJS (POST /workouts/${identifier}/adapt).`,
         error,
       );
       throw error;

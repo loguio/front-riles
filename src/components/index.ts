@@ -3,6 +3,7 @@ export * from "./ui/Badge";
 export * from "./ui/Button";
 export * from "./ui/Slider";
 export * from "./ui/LanguageSelector";
+export * from "./ui/DashboardSkeleton";
 export * from "./navigation/CustomTabBar";
 export * from "./onboarding/OnboardingProgress";
 export * from "./chat/MessageBubble";
