@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Feather,
@@ -33,13 +33,18 @@ import {
   SportType,
   ConnectedApp,
   GoalReformulationResult,
+  StravaSixMonthsSummary,
 } from "../src/types";
 import { onboardingService } from "../src/services";
-import { CONNECTED_APPS_CATALOG } from "../src/mock/mockData";
+import {
+  CONNECTED_APPS_CATALOG,
+  DEFAULT_STRAVA_SIX_MONTHS_SUMMARY,
+} from "../src/mock/mockData";
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams<{ step?: string }>();
   const { completeOnboarding } = useApp();
   const {
     signInWithEmail,
@@ -51,7 +56,10 @@ export default function OnboardingScreen() {
     session,
   } = useAuth();
 
-  const [step, setStep] = useState<number>(1);
+  const [step, setStep] = useState<number>(() => {
+    const parsedStep = Number(params.step);
+    return parsedStep >= 2 && parsedStep <= 5 ? parsedStep : 1;
+  });
   const [authMethod, setAuthMethod] = useState<string | null>(null);
   const [goalText, setGoalText] = useState<string>(
     "Me préparer pour mon premier semi-marathon sans me blesser",
@@ -69,6 +77,9 @@ export default function OnboardingScreen() {
   const [appsCatalog, setAppsCatalog] = useState<ConnectedApp[]>(
     CONNECTED_APPS_CATALOG,
   );
+  const [stravaSummary, setStravaSummary] =
+    useState<StravaSixMonthsSummary | null>(DEFAULT_STRAVA_SIX_MONTHS_SUMMARY);
+  const [isSyncingStrava, setIsSyncingStrava] = useState<boolean>(false);
   const [selectedPlan, setSelectedPlan] = useState<"basic" | "pro">("pro");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -95,15 +106,42 @@ export default function OnboardingScreen() {
     loadApps();
   }, []);
 
+  // Passage automatique à l'étape 2 après retour OAuth Google/Apple ou paramètre ?step=2
+  useEffect(() => {
+    const parsedStep = Number(params.step);
+    if (parsedStep >= 2 && parsedStep <= 5 && step === 1) {
+      setStep(parsedStep);
+      return;
+    }
+
+    if (session && step === 1 && Platform.OS === "web" && typeof window !== "undefined") {
+      const pendingOAuth = window.sessionStorage?.getItem("riles_oauth_pending");
+      const hasAuthCallbackHash =
+        window.location.hash.includes("access_token") ||
+        window.location.search.includes("code=");
+      if (pendingOAuth || hasAuthCallbackHash) {
+        window.sessionStorage?.removeItem("riles_oauth_pending");
+        setAuthMethod(pendingOAuth || "google");
+        setStep(2);
+      }
+    }
+  }, [params.step, session, step]);
+
   // Handlers Supabase Auth
   const handleAppleAuth = async () => {
     try {
       setAuthLoading(true);
       setAuthErrorMessage(null);
       setAuthMethod("apple");
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.sessionStorage?.setItem("riles_oauth_pending", "apple");
+      }
       const result = await signInWithApple();
 
       if (result.error) {
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+          window.sessionStorage?.removeItem("riles_oauth_pending");
+        }
         // Si Apple n'est pas encore configuré sur la console Supabase, fallback transparent démo Apple
         if (
           result.error.message?.includes("provider is not enabled") ||
@@ -122,11 +160,17 @@ export default function OnboardingScreen() {
 
       // Si l'utilisateur a annulé la popup
       if (result.cancelled) {
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+          window.sessionStorage?.removeItem("riles_oauth_pending");
+        }
         return;
       }
 
       // Si la session est confirmée
       if (result.session) {
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+          window.sessionStorage?.removeItem("riles_oauth_pending");
+        }
         setStep(2);
       }
     } catch (err: any) {
@@ -141,20 +185,43 @@ export default function OnboardingScreen() {
       setAuthLoading(true);
       setAuthErrorMessage(null);
       setAuthMethod("google");
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.sessionStorage?.setItem("riles_oauth_pending", "google");
+      }
       const result = await signInWithGoogle();
 
       if (result.error) {
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+          window.sessionStorage?.removeItem("riles_oauth_pending");
+        }
+        if (
+          result.error.message?.includes("provider is not enabled") ||
+          result.error.message?.includes("unsupported provider")
+        ) {
+          const demoRes = await signInWithDemoAccount("google");
+          if (demoRes.session) {
+            setAuthMethod("google");
+            setStep(2);
+            return;
+          }
+        }
         setAuthErrorMessage(formatAuthError(result.error));
         return;
       }
 
       // Si l'utilisateur a fermé ou annulé la fenêtre
       if (result.cancelled) {
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+          window.sessionStorage?.removeItem("riles_oauth_pending");
+        }
         return;
       }
 
       // Si la session est confirmée
       if (result.session) {
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+          window.sessionStorage?.removeItem("riles_oauth_pending");
+        }
         setStep(2);
       }
     } catch (err: any) {
@@ -235,12 +302,38 @@ export default function OnboardingScreen() {
     }
   };
 
+  // Synchronisation des 6 derniers mois Strava + recalibrage de l'objectif sur cet historique
+  const triggerStravaSixMonthsSync = async () => {
+    try {
+      setIsSyncingStrava(true);
+      const summary = await onboardingService.syncStravaSixMonths();
+      setStravaSummary(summary);
+
+      // Recalibre l'objectif et les allures cibles avec les 6 mois de données Strava
+      if (goalText.trim()) {
+        const recalibratedAnalysis = await onboardingService.reformulateGoal(
+          goalText.trim(),
+        );
+        setGoalAnalysis(recalibratedAnalysis);
+      }
+    } catch (err) {
+      console.warn("Strava 6-month sync fallback:", err);
+      setStravaSummary(DEFAULT_STRAVA_SIX_MONTHS_SUMMARY);
+    } finally {
+      setIsSyncingStrava(false);
+    }
+  };
+
   // Step 4: App connection toggle
-  const toggleApp = (appId: string) => {
+  const toggleApp = async (appId: string) => {
     if (connectedAppIds.includes(appId)) {
       setConnectedAppIds(connectedAppIds.filter((id) => id !== appId));
     } else {
-      setConnectedAppIds([...connectedAppIds, appId]);
+      const updatedApps = [...connectedAppIds, appId];
+      setConnectedAppIds(updatedApps);
+      if (appId === "strava") {
+        await triggerStravaSixMonthsSync();
+      }
     }
   };
 
@@ -262,6 +355,20 @@ export default function OnboardingScreen() {
           });
         })
         .catch((e) => console.warn("Background AI goal reformulation:", e));
+    } else if (step === 3 && connectedAppIds.includes("strava")) {
+      // À l'arrivée sur l'étape 4 (applis), on lance automatiquement la récupération des 6 mois Strava
+      triggerStravaSixMonthsSync();
+      onboardingService
+        .saveStepData({
+          currentStep: 3,
+          authMethod: (authMethod as any) || "apple",
+          mainGoal: goalText,
+          selectedSports,
+          connectedApps: connectedAppIds,
+          selectedPlan,
+          extractedRules: goalAnalysis?.extractedRules,
+        })
+        .catch((e) => console.warn("Background step save:", e));
     } else {
       onboardingService
         .saveStepData({
@@ -272,6 +379,7 @@ export default function OnboardingScreen() {
           connectedApps: connectedAppIds,
           selectedPlan,
           extractedRules: goalAnalysis?.extractedRules,
+          stravaSixMonthsSummary: stravaSummary || undefined,
         })
         .catch((e) => console.warn("Background step save:", e));
     }
@@ -289,18 +397,22 @@ export default function OnboardingScreen() {
     }
   };
 
-  const handleFinish = async () => {
+  const handleFinish = async (planOverride?: "basic" | "pro") => {
     try {
       setIsSubmitting(true);
+      const finalPlan = planOverride || selectedPlan;
       await completeOnboarding({
         currentStep: 5,
         authMethod: (authMethod as any) || "apple",
         mainGoal: goalText,
         selectedSports,
         connectedApps: connectedAppIds,
-        selectedPlan,
+        selectedPlan: finalPlan,
         isCompleted: true,
         extractedRules: goalAnalysis?.extractedRules,
+        stravaSixMonthsSummary: connectedAppIds.includes("strava")
+          ? stravaSummary || DEFAULT_STRAVA_SIX_MONTHS_SUMMARY
+          : undefined,
       });
       router.replace("/(tabs)");
     } catch (err) {
@@ -371,6 +483,27 @@ export default function OnboardingScreen() {
                       <Text style={styles.switchAccountText}>Déconnexion</Text>
                     </TouchableOpacity>
                   </View>
+
+                  <TouchableOpacity
+                    style={styles.continueWithAccountBtn}
+                    activeOpacity={0.88}
+                    onPress={() => {
+                      setAuthMethod(
+                        (session.user?.app_metadata?.provider as string) ||
+                          "email",
+                      );
+                      setStep(2);
+                    }}
+                  >
+                    <Text style={styles.continueWithAccountBtnText}>
+                      Continuer avec ce compte
+                    </Text>
+                    <Feather
+                      name="arrow-right"
+                      size={18}
+                      color={Colors.textWhite}
+                    />
+                  </TouchableOpacity>
                 </View>
               )}
 
@@ -592,14 +725,16 @@ export default function OnboardingScreen() {
             <View>
               <Text style={styles.title}>Connecte tes{"\n"}applis</Text>
               <Text style={styles.description}>
-                Importe tes entraînements depuis ta montre ou ton application
-                préférée.
+                Nous récupérons tes 6 derniers mois d'activités Strava pour
+                calibrer ton plan et conserver tout ton historique dans
+                l'application.
               </Text>
 
               {/* 2x3 Grid */}
               <View style={styles.appsGrid}>
                 {appsCatalog.map((app) => {
                   const isConnected = connectedAppIds.includes(app.id);
+                  const isStrava = app.id === "strava";
 
                   return (
                     <TouchableOpacity
@@ -629,19 +764,187 @@ export default function OnboardingScreen() {
                               isConnected && styles.appStatusConnected,
                             ]}
                           >
-                            {isConnected ? "Connecté ✓" : "Connecter"}
+                            {isStrava && isSyncingStrava
+                              ? "Sync 6 mois..."
+                              : isConnected
+                                ? isStrava
+                                  ? "6 mois importés ✓"
+                                  : "Connecté ✓"
+                                : "Connecter"}
                           </Text>
                         </View>
                       </View>
-                      <Feather
-                        name="chevron-right"
-                        size={16}
-                        color={isConnected ? Colors.primary : Colors.textMuted}
-                      />
+                      {isStrava && isSyncingStrava ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={Colors.primary}
+                        />
+                      ) : (
+                        <Feather
+                          name="chevron-right"
+                          size={16}
+                          color={
+                            isConnected ? Colors.primary : Colors.textMuted
+                          }
+                        />
+                      )}
                     </TouchableOpacity>
                   );
                 })}
               </View>
+
+              {/* Bilan des 6 derniers mois Strava + Diagnostic "Aha! Moment" */}
+              {connectedAppIds.includes("strava") && stravaSummary && (
+                <View style={styles.stravaSummaryCard}>
+                  <View style={styles.stravaSummaryHeader}>
+                    <View style={styles.stravaBadgePill}>
+                      <MaterialCommunityIcons
+                        name="run-fast"
+                        size={14}
+                        color={Colors.primary}
+                      />
+                      <Text style={styles.stravaBadgeText}>
+                        HISTORIQUE STRAVA • 6 DERNIERS MOIS
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={triggerStravaSixMonthsSync}
+                      disabled={isSyncingStrava}
+                      style={styles.stravaResyncBtn}
+                    >
+                      <Feather
+                        name="refresh-cw"
+                        size={13}
+                        color={Colors.primary}
+                      />
+                      <Text style={styles.stravaResyncText}>Actualiser</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* 4 KPIs sur 6 mois */}
+                  <View style={styles.stravaMetricsGrid}>
+                    <View style={styles.stravaMetricBox}>
+                      <Text style={styles.stravaMetricValue}>
+                        {stravaSummary.totalKm ?? stravaSummary.totalDistanceKm}{" "}
+                        km
+                      </Text>
+                      <Text style={styles.stravaMetricLabel}>
+                        Volume 6 mois
+                      </Text>
+                    </View>
+                    <View style={styles.stravaMetricBox}>
+                      <Text style={styles.stravaMetricValue}>
+                        {stravaSummary.totalSessions ??
+                          stravaSummary.totalActivities}
+                      </Text>
+                      <Text style={styles.stravaMetricLabel}>
+                        Séances gardées
+                      </Text>
+                    </View>
+                    <View style={styles.stravaMetricBox}>
+                      <Text style={styles.stravaMetricValue}>
+                        {stravaSummary.recent4WeeksAvgKm} km
+                      </Text>
+                      <Text style={styles.stravaMetricLabel}>
+                        Moy. / sem (4 sem.)
+                      </Text>
+                    </View>
+                    <View style={styles.stravaMetricBox}>
+                      <Text style={styles.stravaMetricValue}>
+                        {stravaSummary.longestRunKm} km
+                      </Text>
+                      <Text style={styles.stravaMetricLabel}>
+                        Sortie longue max
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Allures et charge physiologique déduites des 6 mois */}
+                  <View style={styles.pacesPreviewRow}>
+                    <View style={styles.pacePill}>
+                      <Text style={styles.pacePillLabel}>Endurance Z2</Text>
+                      <Text style={styles.pacePillValue}>
+                        {stravaSummary.estimatedPaces.easyPaceRange ??
+                          stravaSummary.estimatedPaces.easyPaceZ2}
+                      </Text>
+                    </View>
+                    <View style={styles.pacePill}>
+                      <Text style={styles.pacePillLabel}>Seuil Z4</Text>
+                      <Text style={styles.pacePillValue}>
+                        {stravaSummary.estimatedPaces.thresholdPace ??
+                          stravaSummary.estimatedPaces.thresholdPaceZ4}
+                      </Text>
+                    </View>
+                    <View style={styles.pacePill}>
+                      <Text style={styles.pacePillLabel}>Fitness CTL</Text>
+                      <Text style={styles.pacePillValue}>
+                        {Math.round(
+                          stravaSummary.ctlFitness ??
+                            stravaSummary.banisterLoad?.ctlFitness ??
+                            52,
+                        )}{" "}
+                        pts
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Mini histogramme mensuel Avril -> Octobre */}
+                  {stravaSummary.monthlyBreakdown.length > 0 && (
+                    <View style={styles.monthlyBarsContainer}>
+                      <Text style={styles.monthlyBarsTitle}>
+                        PROGRESSION MENSUELLE CONSERVÉE DANS LE CALENDRIER
+                      </Text>
+                      <View style={styles.monthlyBarsRow}>
+                        {stravaSummary.monthlyBreakdown.map((m) => {
+                          const maxKm = Math.max(
+                            ...stravaSummary.monthlyBreakdown.map(
+                              (item) => item.totalKm,
+                            ),
+                            1,
+                          );
+                          const barHeight = Math.max(
+                            12,
+                            Math.round((m.totalKm / maxKm) * 48),
+                          );
+                          return (
+                            <View key={m.monthKey} style={styles.monthlyBarCol}>
+                              <Text style={styles.monthlyBarKmText}>
+                                {Math.round(m.totalKm)}
+                              </Text>
+                              <View
+                                style={[
+                                  styles.monthlyBarFill,
+                                  { height: barHeight },
+                                ]}
+                              />
+                              <Text style={styles.monthlyBarLabel}>
+                                {m.label ?? m.monthLabel}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Diagnostic Aha! Moment */}
+                  <View style={styles.ahaMomentBox}>
+                    <View style={styles.ahaMomentHeader}>
+                      <Ionicons
+                        name="sparkles"
+                        size={14}
+                        color={Colors.primary}
+                      />
+                      <Text style={styles.ahaMomentTitle}>
+                        DIAGNOSTIC IA SUR TES 6 MOIS STRAVA
+                      </Text>
+                    </View>
+                    <Text style={styles.ahaMomentText}>
+                      {stravaSummary.ahaInsight}
+                    </Text>
+                  </View>
+                </View>
+              )}
 
               {/* Skip option */}
               <TouchableOpacity
@@ -664,8 +967,37 @@ export default function OnboardingScreen() {
                 Choisis ton mode{"\n"}d'entraînement
               </Text>
               <Text style={styles.description}>
-                Commence simplement. Tu pourras changer de mode à tout moment.
+                Ton plan multi-semaines va être généré immédiatement à partir de
+                ton objectif et de ton historique.
               </Text>
+
+              {/* Récapitulatif de connexion des 6 mois Strava -> Génération du plan */}
+              {connectedAppIds.includes("strava") && stravaSummary && (
+                <View style={styles.planCalibrationBanner}>
+                  <View style={styles.planCalibrationHeader}>
+                    <Feather
+                      name="check-circle"
+                      size={15}
+                      color={Colors.primary}
+                    />
+                    <Text style={styles.planCalibrationTitle}>
+                      CALIBRÉ SUR TES 6 DERNIERS MOIS STRAVA
+                    </Text>
+                  </View>
+                  <Text style={styles.planCalibrationText}>
+                    {stravaSummary.totalSessions ??
+                      stravaSummary.totalActivities}{" "}
+                    séances (
+                    {stravaSummary.totalKm ?? stravaSummary.totalDistanceKm} km
+                    cumulés • {stravaSummary.recent4WeeksAvgKm} km/sem récents)
+                    sont enregistrées dans ton calendrier et servent de socle
+                    pour créer ton plan vers :{" "}
+                    <Text style={styles.planCalibrationGoalBold}>
+                      {goalAnalysis?.reformulatedGoal || goalText}
+                    </Text>
+                  </Text>
+                </View>
+              )}
 
               {/* Option 1: Basique */}
               <TouchableOpacity
@@ -681,7 +1013,8 @@ export default function OnboardingScreen() {
                   <Text style={styles.planFreeText}>Gratuit</Text>
                 </View>
                 <Text style={styles.planDescription}>
-                  Plan statique standard, synchronisation des sorties.
+                  Plan initial calibré sur tes 6 mois Strava, synchronisation
+                  des sorties.
                 </Text>
               </TouchableOpacity>
 
@@ -705,8 +1038,8 @@ export default function OnboardingScreen() {
                   <Text style={styles.planOfferText}>14 jours offerts</Text>
                 </View>
                 <Text style={styles.planDescription}>
-                  Coach IA illimité, arbitrage de fatigue en langage naturel,
-                  replanification dynamique.
+                  Plan multi-semaines évolutif calibré sur tes 6 mois Strava,
+                  Coach IA illimité, arbitrage de fatigue en temps réel.
                 </Text>
               </TouchableOpacity>
             </View>
@@ -750,6 +1083,7 @@ export default function OnboardingScreen() {
                 <TouchableOpacity
                   style={styles.backBtn}
                   activeOpacity={0.7}
+                  disabled={isSubmitting}
                   onPress={handleBack}
                 >
                   <Feather
@@ -763,32 +1097,48 @@ export default function OnboardingScreen() {
                 <TouchableOpacity
                   style={[styles.continueBtn, styles.proCtaBtn]}
                   activeOpacity={0.88}
+                  disabled={isSubmitting}
                   onPress={() => {
                     setSelectedPlan("pro");
-                    handleFinish();
+                    handleFinish("pro");
                   }}
                 >
-                  <Text style={styles.continueBtnText}>
-                    Essayer l'adaptation Pro
-                  </Text>
-                  <Feather
-                    name="arrow-right"
-                    size={18}
-                    color={Colors.textWhite}
-                  />
+                  {isSubmitting ? (
+                    <>
+                      <ActivityIndicator
+                        size="small"
+                        color={Colors.textWhite}
+                      />
+                      <Text style={styles.continueBtnText}>
+                        Création du plan...
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.continueBtnText}>
+                        Générer mon plan Pro
+                      </Text>
+                      <Feather
+                        name="arrow-right"
+                        size={18}
+                        color={Colors.textWhite}
+                      />
+                    </>
+                  )}
                 </TouchableOpacity>
               </View>
 
               <TouchableOpacity
                 style={styles.basicCtaBtn}
                 activeOpacity={0.7}
+                disabled={isSubmitting}
                 onPress={() => {
                   setSelectedPlan("basic");
-                  handleFinish();
+                  handleFinish("basic");
                 }}
               >
                 <Text style={styles.basicCtaText}>
-                  Continuer avec la version basique gratuite
+                  Continuer et générer mon plan en version basique gratuite
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1703,6 +2053,171 @@ const styles = StyleSheet.create({
   adoptAlternativeBtnText: {
     color: Colors.textWhite,
     fontSize: Typography.sizes.xs,
+    fontWeight: "800",
+  },
+  // Step 4: Strava 6 Months Summary & Aha! Moment
+  stravaSummaryCard: {
+    backgroundColor: "#FFF9F7",
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1.5,
+    borderColor: Colors.primaryBorder,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    gap: Spacing.md,
+  },
+  stravaSummaryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  stravaBadgePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Colors.primaryMuted,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+  },
+  stravaBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: Colors.primary,
+    letterSpacing: 0.5,
+  },
+  stravaResyncBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  stravaResyncText: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+  stravaMetricsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  stravaMetricBox: {
+    width: "48%",
+    backgroundColor: Colors.card,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.md,
+  },
+  stravaMetricValue: {
+    fontSize: Typography.sizes.md,
+    fontWeight: "900",
+    color: Colors.textPrimary,
+  },
+  stravaMetricLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  monthlyBarsContainer: {
+    backgroundColor: Colors.card,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+  },
+  monthlyBarsTitle: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: Colors.textSecondary,
+    letterSpacing: 0.5,
+    marginBottom: Spacing.sm,
+  },
+  monthlyBarsRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    height: 78,
+    paddingTop: 10,
+  },
+  monthlyBarCol: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 4,
+  },
+  monthlyBarKmText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+  },
+  monthlyBarFill: {
+    width: 18,
+    borderRadius: 6,
+    backgroundColor: Colors.primary,
+  },
+  monthlyBarLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+  },
+  ahaMomentBox: {
+    backgroundColor: Colors.card,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+    padding: Spacing.md,
+    gap: 6,
+  },
+  ahaMomentHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  ahaMomentTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Colors.primary,
+    letterSpacing: 0.5,
+  },
+  ahaMomentText: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.textPrimary,
+    fontWeight: "600",
+    lineHeight: 18,
+  },
+  // Step 5: Plan Calibration Banner
+  planCalibrationBanner: {
+    backgroundColor: "#FFF9F7",
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    gap: 6,
+  },
+  planCalibrationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  planCalibrationTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Colors.primary,
+    letterSpacing: 0.5,
+  },
+  planCalibrationText: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+  planCalibrationGoalBold: {
+    color: Colors.textPrimary,
     fontWeight: "800",
   },
 });

@@ -32,7 +32,7 @@ export default function AuthCallbackScreen() {
       if (completed) {
         router.replace("/(tabs)" as any);
       } else {
-        router.replace("/onboarding" as any);
+        router.replace("/onboarding?step=2" as any);
       }
     }, 150);
   };

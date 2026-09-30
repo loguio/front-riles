@@ -3,9 +3,13 @@ import {
   ConnectedApp,
   GoalReformulationResult,
   ExtractedRuleItem,
+  StravaSixMonthsSummary,
 } from "../types";
 import { apiClient } from "./apiClient";
-import { CONNECTED_APPS_CATALOG } from "../mock/mockData";
+import {
+  CONNECTED_APPS_CATALOG,
+  DEFAULT_STRAVA_SIX_MONTHS_SUMMARY,
+} from "../mock/mockData";
 
 const DEFAULT_ONBOARDING_STATE: OnboardingState = {
   currentStep: 1,
@@ -16,6 +20,7 @@ const DEFAULT_ONBOARDING_STATE: OnboardingState = {
   connectedApps: ["garmin", "strava"],
   selectedPlan: "pro",
   isCompleted: false,
+  stravaSixMonthsSummary: DEFAULT_STRAVA_SIX_MONTHS_SUMMARY,
 };
 
 function buildLocalGoalReformulation(rawGoal: string): GoalReformulationResult {
@@ -86,7 +91,7 @@ function buildLocalGoalReformulation(rawGoal: string): GoalReformulationResult {
   }
 
   return {
-    reformulatedGoal: `Préparer « ${title} — ${target} » sur ${weeksRemaining} semaines (allures calibrées sur tes séances récentes & fréquence cardiaque).`,
+    reformulatedGoal: `Préparer « ${title} — ${target} » sur ${weeksRemaining} semaines (allures calibrées sur tes 6 derniers mois Strava & fréquence cardiaque).`,
     extractedGoal: {
       title,
       target,
@@ -96,17 +101,17 @@ function buildLocalGoalReformulation(rawGoal: string): GoalReformulationResult {
     },
     extractedRules,
     targetPaces: {
-      easyPaceZ2: "5:45/km – 6:05/km",
-      marathonPaceZ3: "5:15/km",
-      thresholdPaceZ4: "4:52/km",
-      intervalPaceZ5: "4:28/km",
-      targetRacePace: "5:00/km",
+      easyPaceZ2: "5:38/km – 5:58/km",
+      marathonPaceZ3: "5:10/km",
+      thresholdPaceZ4: "4:48/km",
+      intervalPaceZ5: "4:26/km",
+      targetRacePace: "4:56/km",
     },
     eligibility: {
       status: "ELIGIBLE",
       isRealistic: true,
       pedagogicalMessage:
-        "Objectif enregistré. Les allures et la charge seront calibrées sur tes séances récentes et ta fréquence cardiaque.",
+        "Objectif cohérent avec tes 6 derniers mois Strava (~36,8 km/sem sur le dernier mois).",
     },
   };
 }
@@ -133,6 +138,55 @@ export const onboardingService = {
     } catch (error) {
       console.warn("API onboardingService.getAppsCatalog fallback:", error);
       return CONNECTED_APPS_CATALOG;
+    }
+  },
+
+  /**
+   * Récupère l'URL d'autorisation OAuth2 Strava
+   */
+  async getStravaOAuthUrl(redirectUri?: string): Promise<{
+    authorizeUrl: string;
+    clientId: string;
+    redirectUri: string;
+    isLiveConfigured: boolean;
+  }> {
+    try {
+      return await apiClient.get("onboarding/oauth/strava/url", {
+        params: redirectUri ? { redirectUri } : undefined,
+      });
+    } catch {
+      return {
+        authorizeUrl: "https://www.strava.com/oauth/authorize",
+        clientId: "riles_strava_demo_client",
+        redirectUri: redirectUri || "http://localhost:8081/onboarding",
+        isLiveConfigured: false,
+      };
+    }
+  },
+
+  /**
+   * Récupère et sauvegarde les 6 derniers mois de données Strava dans l'application et le contexte IA
+   */
+  async syncStravaSixMonths(options?: {
+    code?: string;
+    redirectUri?: string;
+    pushToken?: string;
+    forceRefresh?: boolean;
+  }): Promise<StravaSixMonthsSummary> {
+    try {
+      return await apiClient.post<StravaSixMonthsSummary>(
+        "onboarding/strava/sync-six-months",
+        options || {},
+      );
+    } catch (error) {
+      console.warn(
+        "API onboardingService.syncStravaSixMonths fallback local:",
+        error,
+      );
+      return {
+        ...DEFAULT_STRAVA_SIX_MONTHS_SUMMARY,
+        syncedAt: new Date().toISOString(),
+      };
     }
   },
 
@@ -169,7 +223,7 @@ export const onboardingService = {
   },
 
   /**
-   * Finalise l'onboarding et initialise le compte
+   * Finalise l'onboarding, synchronise les 6 mois de données Strava et génère le plan d'entraînement
    */
   async completeOnboarding(
     finalData?: Partial<OnboardingState>,

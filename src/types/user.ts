@@ -1,3 +1,5 @@
+import { StravaSixMonthsSummary } from "./onboarding";
+
 export interface UserRule {
   id: string;
   title: string;
@@ -26,4 +28,8 @@ export interface UserProfile {
   rules: UserRule[];
   connectedApps: string[];
   planType: "basic" | "pro";
+  atlFatigue?: number;
+  ctlFitness?: number;
+  tsbForm?: number;
+  stravaSixMonthsSummary?: StravaSixMonthsSummary;
 }

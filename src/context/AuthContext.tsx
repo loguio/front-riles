@@ -172,7 +172,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   // Connexion Email / Mot de passe
   const signInWithEmail = async (email: string, password: string) => {
     try {
-      setIsLoading(true);
       const trimmedEmail = email.trim().toLowerCase();
       const { data, error } = await supabase.auth.signInWithPassword({
         email: trimmedEmail,
@@ -225,8 +224,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       return { error: error as AuthError, session: null };
     } catch (err: any) {
       return { error: err as AuthError, session: null };
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -237,7 +234,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     name?: string,
   ) => {
     try {
-      setIsLoading(true);
       const trimmedEmail = email.trim().toLowerCase();
       const displayName = name || trimmedEmail.split("@")[0];
 
@@ -328,8 +324,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         session: devSession,
         needsEmailConfirmation: false,
       };
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -453,7 +447,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     role: "google" | "apple" | "marius" = "marius",
   ) => {
     try {
-      setIsLoading(true);
       const demoEmail =
         role === "google"
           ? "marius.google@riles.app"
@@ -533,23 +526,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       return { error: null, session: fallbackSession };
     } catch (err: any) {
       return { error: err, session: null };
-    } finally {
-      setIsLoading(false);
     }
   };
 
   // Déconnexion
   const signOut = async () => {
     try {
-      setIsLoading(true);
       const { error } = await supabase.auth.signOut();
       handleSessionChange(null);
       return { error };
     } catch (err: any) {
       handleSessionChange(null);
       return { error: err as AuthError };
-    } finally {
-      setIsLoading(false);
     }
   };
 

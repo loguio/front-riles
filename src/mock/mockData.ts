@@ -6,8 +6,93 @@ import {
   QuickPrompt,
   CommunityRun,
   MonthlyChallenge,
+  StravaSixMonthsSummary,
 } from "../types";
 import { Colors } from "../constants/theme";
+
+export const DEFAULT_STRAVA_SIX_MONTHS_SUMMARY: StravaSixMonthsSummary = {
+  periodMonths: 6,
+  startDateKey: "2026-04-20",
+  endDateKey: "2026-10-13",
+  totalActivities: 77,
+  totalDistanceKm: 684.5,
+  totalDurationHours: 61.4,
+  totalElevationGainM: 4320,
+  activeWeeks: 26,
+  averageWeeklyKm: 26.3,
+  recent4WeeksAvgKm: 36.8,
+  longestRunKm: 16.5,
+  avgHeartRate: 145,
+  maxHeartRateObserved: 184,
+  estimatedPaces: {
+    easyPaceZ2: "5:38/km – 5:58/km",
+    marathonPaceZ3: "5:10/km",
+    thresholdPaceZ4: "4:48/km",
+    intervalPaceZ5: "4:26/km",
+    targetRacePace: "4:56/km",
+  },
+  banisterLoad: {
+    ctlFitness: 52.4,
+    atlFatigue: 45.8,
+    tsbForm: 6.6,
+    readinessScore: 88,
+  },
+  monthlyBreakdown: [
+    {
+      monthKey: "2026-04",
+      monthLabel: "Avr",
+      totalKm: 52.4,
+      sessionsCount: 6,
+      avgPace: "5:42/km",
+    },
+    {
+      monthKey: "2026-05",
+      monthLabel: "Mai",
+      totalKm: 108.6,
+      sessionsCount: 13,
+      avgPace: "5:38/km",
+    },
+    {
+      monthKey: "2026-06",
+      monthLabel: "Juin",
+      totalKm: 112.0,
+      sessionsCount: 13,
+      avgPace: "5:34/km",
+    },
+    {
+      monthKey: "2026-07",
+      monthLabel: "Juil",
+      totalKm: 118.5,
+      sessionsCount: 13,
+      avgPace: "5:30/km",
+    },
+    {
+      monthKey: "2026-08",
+      monthLabel: "Août",
+      totalKm: 126.2,
+      sessionsCount: 14,
+      avgPace: "5:26/km",
+    },
+    {
+      monthKey: "2026-09",
+      monthLabel: "Sept",
+      totalKm: 138.4,
+      sessionsCount: 13,
+      avgPace: "5:21/km",
+    },
+    {
+      monthKey: "2026-10",
+      monthLabel: "Oct",
+      totalKm: 28.4,
+      sessionsCount: 5,
+      avgPace: "5:18/km",
+    },
+  ],
+  ahaInsight:
+    "Sur tes 6 derniers mois Strava (77 séances • 684,5 km), ton volume a progressé jusqu'à 36,8 km/sem sur le dernier mois (sortie longue max : 16,5 km). Tes données montrent que le jeudi est ton jour naturel de récupération : ton plan multi-semaines calibre ta Zone 2 à 5:38–5:58/km, ton Seuil à 4:48/km et verrouille cette récupération sans risque de surcharge.",
+  syncedAt: "2026-10-14T08:00:00.000Z",
+  sourceMode: "strava_history_import",
+};
 
 export const INITIAL_USER: UserProfile = {
   id: "user-01",
@@ -23,8 +108,8 @@ export const INITIAL_USER: UserProfile = {
     progressPercentage: 65,
   },
   stats: {
-    activeWeeks: 12,
-    totalKm: 328,
+    activeWeeks: 26,
+    totalKm: 684.5,
     completedRaces: 4,
   },
   rules: [
@@ -49,6 +134,10 @@ export const INITIAL_USER: UserProfile = {
   ],
   connectedApps: ["garmin", "strava"],
   planType: "pro",
+  atlFatigue: 45.8,
+  ctlFitness: 52.4,
+  tsbForm: 6.6,
+  stravaSixMonthsSummary: DEFAULT_STRAVA_SIX_MONTHS_SUMMARY,
 };
 
 export const CONNECTED_APPS_CATALOG: ConnectedApp[] = [
@@ -1489,6 +1578,181 @@ export const WORKOUTS_BY_WEEK: Record<
 
 export const WEEK_42_WORKOUTS: Record<number, WorkoutSession> =
   WORKOUTS_BY_WEEK[42];
+
+// Initialisation des 6 derniers mois d'historique Strava (Semaines 17 à 39 d'Avril à Septembre 2026)
+(function populateSixMonthsStravaHistory() {
+  const dayNamesShort = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+  const dayNamesFull = [
+    "DIMANCHE",
+    "LUNDI",
+    "MARDI",
+    "MERCREDI",
+    "JEUDI",
+    "VENDREDI",
+    "SAMEDI",
+  ];
+  const monthNamesFull = [
+    "JANVIER",
+    "FÉVRIER",
+    "MARS",
+    "AVRIL",
+    "MAI",
+    "JUIN",
+    "JUILLET",
+    "AOÛT",
+    "SEPTEMBRE",
+    "OCTOBRE",
+    "NOVEMBRE",
+    "DÉCEMBRE",
+  ];
+  const baseMondayW42 = Date.UTC(2026, 9, 12);
+
+  for (let weekNum = 17; weekNum <= 39; weekNum++) {
+    if (WORKOUTS_BY_WEEK[weekNum]) continue;
+    WORKOUTS_BY_WEEK[weekNum] = {};
+
+    const weekOffset = weekNum - 17;
+    const isDeload = (weekOffset + 1) % 4 === 0;
+    const prog = (weekOffset / 24) * 0.42;
+    const factor = isDeload ? (1 + prog) * 0.82 : 1 + prog;
+    const paceGainSec = Math.round((weekOffset / 24) * 18);
+
+    const sessions = [
+      {
+        dayOffset: 0,
+        category: "ENDURANCE FONDAMENTALE",
+        titlePrefix: "Footing Endurance Fondamentale Z2",
+        baseDistKm: 6.2,
+        basePaceSec: 354 - paceGainSec,
+        avgHr: 139 + (weekOffset % 3),
+        maxHr: 152 + (weekOffset % 4),
+        elev: 38 + (weekOffset % 5) * 6,
+        cadence: 173 + Math.floor(weekOffset / 8),
+      },
+      {
+        dayOffset: 2,
+        category: "SÉANCE QUALITATIVE",
+        titlePrefix:
+          weekOffset % 2 === 0
+            ? "Séance Seuil Anaérobie & Tempo"
+            : "Fractionné VMA & Répétitions",
+        baseDistKm: 8.0,
+        basePaceSec: 306 - paceGainSec,
+        avgHr: 162 + (weekOffset % 4),
+        maxHr: 179 + (weekOffset % 5),
+        elev: 45 + (weekOffset % 4) * 5,
+        cadence: 178 + Math.floor(weekOffset / 8),
+      },
+      {
+        dayOffset: 5,
+        category: "SORTIE LONGUE",
+        titlePrefix: "Sortie Longue Aérobie Progressive",
+        baseDistKm: 11.2,
+        basePaceSec: 346 - paceGainSec,
+        avgHr: 144 + (weekOffset % 3),
+        maxHr: 161 + (weekOffset % 4),
+        elev: 85 + (weekOffset % 6) * 12,
+        cadence: 175 + Math.floor(weekOffset / 8),
+      },
+    ];
+
+    for (const cfg of sessions) {
+      const dateMs =
+        baseMondayW42 + ((weekNum - 42) * 7 + cfg.dayOffset) * 86400 * 1000;
+      const dObj = new Date(dateMs);
+      const yyyy = dObj.getUTCFullYear();
+      const mm = dObj.getUTCMonth();
+      const dd = dObj.getUTCDate();
+      const dow = dObj.getUTCDay();
+      const dateKey = `${yyyy}-${String(mm + 1).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+
+      const actualDistanceKm = Number((cfg.baseDistKm * factor).toFixed(1));
+      const actualDurationSec = Math.round(actualDistanceKm * cfg.basePaceSec);
+      const secPerKm = Math.round(actualDurationSec / actualDistanceKm);
+      const actualPace = `${Math.floor(secPerKm / 60)}:${String(secPerKm % 60).padStart(2, "0")}/km`;
+      const durMins = Math.round(actualDurationSec / 60);
+      const durationLabel =
+        durMins >= 60
+          ? `${Math.floor(durMins / 60)}h${String(durMins % 60).padStart(2, "0")}`
+          : `${durMins} min`;
+      const distLabel = `${actualDistanceKm.toFixed(1).replace(".", ",")} km`;
+      const isQuality = cfg.category === "SÉANCE QUALITATIVE";
+      const tss = Math.round(
+        (actualDurationSec / 3600) *
+          Math.pow(cfg.avgHr / 190 / 0.88, 2) *
+          100,
+      );
+
+      WORKOUTS_BY_WEEK[weekNum][dd] = {
+        id: `w-${weekNum}-${dd}`,
+        dateKey,
+        dayName: dayNamesShort[dow],
+        dayNumber: dd,
+        fullDateLabel: `${dayNamesFull[dow]} ${dd} ${monthNamesFull[mm]}`,
+        timeLabel: cfg.dayOffset === 5 ? "09:00" : "18:15",
+        status: "done",
+        isRestDay: false,
+        category: cfg.category,
+        title: `${cfg.titlePrefix} (${distLabel})`,
+        duration: durationLabel,
+        distance: distLabel,
+        targetPace: actualPace,
+        targetZoneLabel: isQuality ? "Zone 3–4" : "Zone 2",
+        targetZoneBpm: isQuality ? "158–172 bpm" : "134–148 bpm",
+        targetZoneSegments: isQuality
+          ? [
+              { color: "#93C5FD", flex: 1 },
+              { color: "#FBBF24", flex: 2 },
+              { color: "#FC4C02", flex: 2 },
+            ]
+          : [
+              { color: "#93C5FD", flex: 2 },
+              { color: "#34D399", flex: 4 },
+              { color: "#FBBF24", flex: 1 },
+            ],
+        pinPositionPercent: isQuality ? 66 : 38,
+        effortBlocks: [
+          {
+            title: "Échauffement",
+            durationLabel: "12 min",
+            type: "warmup",
+            flexRatio: 1,
+          },
+          {
+            title: isQuality ? "Bloc Seuil" : "Endurance Z2",
+            durationLabel: `${Math.max(15, durMins - 17)} min`,
+            type: isQuality ? "threshold" : "interval",
+            flexRatio: 3,
+          },
+          {
+            title: "Retour au calme",
+            durationLabel: "5 min",
+            type: "cooldown",
+            flexRatio: 1,
+          },
+        ],
+        tags: [
+          `${distLabel} réalisés`,
+          `Allure réelle : ${actualPace}`,
+          `FC moy : ${cfg.avgHr} bpm`,
+        ],
+        aiAdjustmentNote: `Séance réelle importée depuis tes 6 derniers mois Strava : ${distLabel} en ${durationLabel} (${actualPace} • ${cfg.avgHr} bpm moy • Charge : ${tss} TSS).`,
+        externalActivityId: `strava-6m-${dateKey}`,
+        sourceProvider: "strava",
+        actualDistanceKm,
+        actualDurationSec,
+        actualPace,
+        actualAvgHeartRate: cfg.avgHr,
+        actualMaxHeartRate: cfg.maxHr,
+        actualElevationGain: cfg.elev,
+        actualCalories: Math.round(actualDistanceKm * 63),
+        actualCadence: cfg.cadence,
+        tss,
+        completedAt: `${dateKey}T18:30:00.000Z`,
+      };
+    }
+  }
+})();
 
 /**
  * Dynamic generator for any date outside the pre-populated mock dataset

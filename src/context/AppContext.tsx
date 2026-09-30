@@ -534,6 +534,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         setWorkouts(refreshedWeek);
         setMonthWorkouts(refreshedMonth);
         setChatMessages(refreshedChat);
+
+        const defaultSession =
+          refreshedWeek.find(
+            (w) => w.dateKey === "2026-10-14" || w.dayNumber === 14,
+          ) ||
+          refreshedWeek[0] ||
+          null;
+        setSelectedWorkout(defaultSession);
+        if (defaultSession) {
+          setSelectedDateKey(defaultSession.dateKey);
+          setSelectedDayState(defaultSession.dayNumber);
+        }
       } catch (err) {
         console.error("Failed to complete onboarding:", err);
       }

@@ -41,6 +41,59 @@ export interface GoalReformulationResult {
   };
 }
 
+export interface StravaMonthlyStat {
+  monthKey: string;
+  monthLabel?: string;
+  label?: string;
+  totalKm: number;
+  sessionsCount: number;
+  avgPace: string;
+}
+
+export interface StravaSixMonthsSummary {
+  periodMonths?: number;
+  startDateKey?: string;
+  endDateKey?: string;
+  periodStartDate?: string;
+  periodEndDate?: string;
+  totalActivities?: number;
+  totalSessions?: number;
+  totalDistanceKm?: number;
+  totalKm?: number;
+  totalDurationHours?: number;
+  totalElevationGainM?: number;
+  activeWeeks: number;
+  averageWeeklyKm?: number;
+  avgWeeklyKm?: number;
+  recent4WeeksAvgKm: number;
+  longestRunKm: number;
+  avgHeartRate: number;
+  maxHeartRateObserved?: number;
+  ctlFitness?: number;
+  atlFatigue?: number;
+  tsbForm?: number;
+  estimatedPaces: {
+    easyPaceZ2?: string;
+    marathonPaceZ3?: string;
+    thresholdPaceZ4?: string;
+    intervalPaceZ5?: string;
+    targetRacePace?: string;
+    easyPaceRange?: string;
+    thresholdPace?: string;
+    intervalPace?: string;
+  };
+  banisterLoad?: {
+    ctlFitness: number;
+    atlFatigue: number;
+    tsbForm: number;
+    readinessScore: number;
+  };
+  monthlyBreakdown: StravaMonthlyStat[];
+  ahaInsight: string;
+  syncedAt?: string;
+  sourceMode?: "strava_oauth_live" | "strava_history_import";
+}
+
 export interface OnboardingState {
   currentStep: number; // 1 to 5
   authMethod: AuthProvider | null;
@@ -51,4 +104,6 @@ export interface OnboardingState {
   selectedPlan: "basic" | "pro";
   isCompleted: boolean;
   extractedRules?: ExtractedRuleItem[];
+  stravaSixMonthsSummary?: StravaSixMonthsSummary;
+  generatedPlanSummary?: string;
 }
