@@ -9,9 +9,9 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   Colors,
   Spacing,
@@ -23,10 +23,12 @@ import { MessageBubble } from "../src/components/chat/MessageBubble";
 import { ChatInput } from "../src/components/chat/ChatInput";
 import { useApp } from "../src/context/AppContext";
 import { ChatSuggestedAction } from "../src/types";
+import { analytics } from "../src/services";
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { from } = useLocalSearchParams<{ from?: string }>();
   const scrollViewRef = useRef<ScrollView>(null);
 
   const {
@@ -37,6 +39,14 @@ export default function ChatScreen() {
     applyCoachAction,
   } = useApp();
 
+  // Suivi de l'ouverture du chat
+  useEffect(() => {
+    analytics.trackEvent("chat_session_opened", {
+      from: from || "direct",
+      has_context_workout: Boolean(selectedWorkout?.title),
+    });
+  }, [from, selectedWorkout?.title]);
+
   // Auto-scroll on new message or typing
   useEffect(() => {
     setTimeout(() => {
@@ -45,6 +55,10 @@ export default function ChatScreen() {
   }, [chatMessages, isCoachTyping]);
 
   const handleSend = (text: string) => {
+    analytics.trackEvent("chat_message_sent", {
+      message_length: text.length,
+      has_context_workout: Boolean(selectedWorkout?.title),
+    });
     sendChatMessage(text, {
       activeSessionTitle: selectedWorkout?.title,
     });
@@ -55,12 +69,26 @@ export default function ChatScreen() {
     suggestedAction?: ChatSuggestedAction,
     messageId?: string,
   ) => {
+    analytics.trackEvent("chat_coach_action_applied", {
+      action_type: suggestedAction?.type || "unknown",
+      action_label: suggestedAction?.label,
+    });
     await applyCoachAction(
       actionDetails,
       selectedWorkout?.dayNumber,
       suggestedAction,
       messageId,
     );
+  };
+
+  const handleBack = () => {
+    if (from === "onboarding") {
+      router.replace({ pathname: "/onboarding", params: { mode: "review" } });
+    } else if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)");
+    }
   };
 
   return (
@@ -74,7 +102,7 @@ export default function ChatScreen() {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backBtn}
-            onPress={() => router.back()}
+            onPress={handleBack}
             activeOpacity={0.7}
           >
             <Feather name="arrow-left" size={22} color={Colors.textPrimary} />
@@ -82,31 +110,78 @@ export default function ChatScreen() {
 
           <View style={styles.coachHeaderInfo}>
             <View style={styles.coachAvatar}>
-              <Ionicons name="sparkles" size={16} color={Colors.textWhite} />
+              <MaterialCommunityIcons
+                name="run"
+                size={18}
+                color={Colors.textWhite}
+              />
             </View>
             <View>
               <Text style={styles.coachName}>Coach Riles IA</Text>
               <View style={styles.onlineStatusRow}>
                 <View style={styles.onlineDot} />
                 <Text style={styles.onlineStatusText}>
-                  En ligne • Recalcul dynamique de ta semaine
+                  En ligne • Recalcul dynamique de ton plan
                 </Text>
               </View>
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.infoBtn}
-            activeOpacity={0.7}
-            onPress={() => {}}
-          >
-            <Ionicons
-              name="ellipsis-horizontal"
-              size={20}
-              color={Colors.textSecondary}
-            />
-          </TouchableOpacity>
+          {from === "onboarding" ? (
+            <TouchableOpacity
+              style={styles.headerPlanBtn}
+              activeOpacity={0.8}
+              onPress={() =>
+                router.replace({
+                  pathname: "/onboarding",
+                  params: { mode: "review" },
+                })
+              }
+            >
+              <Feather name="calendar" size={14} color={Colors.primary} />
+              <Text style={styles.headerPlanBtnText}>Mon plan</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.infoBtn}
+              activeOpacity={0.7}
+              onPress={() => {}}
+            >
+              <Ionicons
+                name="ellipsis-horizontal"
+                size={20}
+                color={Colors.textSecondary}
+              />
+            </TouchableOpacity>
+          )}
         </View>
+
+        {/* 1bis. Bannière d'accès direct au plan pour le parcours onboarding */}
+        {from === "onboarding" && (
+          <View style={styles.onboardingReturnBanner}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.onboardingReturnTitle}>
+                Discussion sur ton plan
+              </Text>
+              <Text style={styles.onboardingReturnSubtitle}>
+                Ajuste ton volume ou tes préférences, puis valide ton plan.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.onboardingReturnBtn}
+              activeOpacity={0.85}
+              onPress={() =>
+                router.replace({
+                  pathname: "/onboarding",
+                  params: { mode: "review" },
+                })
+              }
+            >
+              <Text style={styles.onboardingReturnBtnText}>Voir le plan</Text>
+              <Feather name="arrow-right" size={13} color={Colors.textWhite} />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* 2. Session Context Pill */}
         {selectedWorkout && (
@@ -138,7 +213,7 @@ export default function ChatScreen() {
           {isCoachTyping && (
             <View style={styles.typingContainer}>
               <View style={styles.coachTypingAvatar}>
-                <Ionicons name="sparkles" size={12} color={Colors.textWhite} />
+                <MaterialCommunityIcons name="run" size={13} color={Colors.textWhite} />
               </View>
               <View style={styles.typingBubble}>
                 <ActivityIndicator size="small" color={Colors.primary} />
@@ -233,6 +308,58 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
+  },
+  headerPlanBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.primaryMuted,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+  },
+  headerPlanBtnText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: Colors.primary,
+  },
+  onboardingReturnBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFF5F2",
+    borderBottomWidth: 1,
+    borderBottomColor: "#FFE4DC",
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: 10,
+    gap: Spacing.sm,
+  },
+  onboardingReturnTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: Colors.primary,
+  },
+  onboardingReturnSubtitle: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  onboardingReturnBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.full,
+    ...Shadows.subtle,
+  },
+  onboardingReturnBtnText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Colors.textWhite,
   },
   contextBanner: {
     flexDirection: "row",

@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { Ionicons, Feather } from "@expo/vector-icons";
+import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { ChatMessage, ChatSuggestedAction } from "../../types";
 import {
   Colors,
@@ -35,7 +35,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       {/* Coach avatar icon */}
       {!isUser && (
         <View style={styles.coachAvatarCircle}>
-          <Ionicons name="sparkles" size={14} color={Colors.textWhite} />
+          <MaterialCommunityIcons name="run" size={15} color={Colors.textWhite} />
         </View>
       )}
 

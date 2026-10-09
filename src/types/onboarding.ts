@@ -94,11 +94,45 @@ export interface StravaSixMonthsSummary {
   sourceMode?: "strava_oauth_live" | "strava_history_import";
 }
 
+export interface PreparationPhase {
+  name: string;
+  weeksRangeLabel: string;
+  focus: string;
+  weekType: string;
+  avgKm: number;
+  sessionsPerWeek: number;
+}
+
+export interface WeeklyPlanBreakdown {
+  weekNumber: number;
+  relativeWeek: number;
+  phaseName: string;
+  weekType: string;
+  estimatedKm: number;
+  plannedRunningSessions: number;
+  restDays: number;
+  keySessions: string[];
+}
+
+export interface GeneratedPlanOverview {
+  planSummary: string;
+  weeksGenerated: number;
+  startWeekNumber: number;
+  year: number;
+  targetRaceDate?: string;
+  modelUsed: string;
+  totalPlannedSessions: number;
+  phases: PreparationPhase[];
+  weeklyBreakdown: WeeklyPlanBreakdown[];
+}
+
 export interface OnboardingState {
   currentStep: number; // 1 to 5
   authMethod: AuthProvider | null;
   userEmail?: string;
   mainGoal: string;
+  targetRaceDate?: string;
+  weeksToGenerate?: number;
   selectedSports: SportType[];
   connectedApps: string[];
   selectedPlan: "basic" | "pro";
@@ -106,4 +140,5 @@ export interface OnboardingState {
   extractedRules?: ExtractedRuleItem[];
   stravaSixMonthsSummary?: StravaSixMonthsSummary;
   generatedPlanSummary?: string;
+  generatedPlan?: GeneratedPlanOverview;
 }

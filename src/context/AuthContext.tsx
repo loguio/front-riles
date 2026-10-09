@@ -11,6 +11,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { supabase } from "../config/supabase";
 import { setAuthToken, setUserId, API_CONFIG } from "../config/api";
+import { analytics } from "../services/analytics";
 
 // Assure la complétion des sessions OAuth web/mobile
 WebBrowser.maybeCompleteAuthSession();
@@ -107,17 +108,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Synchronise le token pour le client API NestJS
+  // Synchronise le token pour le client API NestJS et PostHog
   const handleSessionChange = useCallback((newSession: Session | null) => {
     setSession(newSession);
     setUser(newSession?.user ?? null);
 
-    if (newSession?.access_token) {
+    if (newSession?.access_token && newSession.user) {
       setAuthToken(newSession.access_token);
       setUserId(newSession.user.id);
+      analytics.identifyUser(newSession.user.id, {
+        email: newSession.user.email,
+        name:
+          newSession.user.user_metadata?.full_name ||
+          newSession.user.user_metadata?.name,
+        provider: newSession.user.app_metadata?.provider || "email",
+      });
     } else {
       setAuthToken(null);
       setUserId(API_CONFIG.defaultUserId);
+      analytics.resetUser();
     }
   }, []);
 
@@ -532,6 +541,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   // Déconnexion
   const signOut = async () => {
     try {
+      analytics.trackEvent("user_signed_out");
       const { error } = await supabase.auth.signOut();
       handleSessionChange(null);
       return { error };

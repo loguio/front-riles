@@ -64,7 +64,9 @@ interface AppContextType {
   ) => Promise<void>;
   generateMultiWeekPlan: (weeksToGenerate?: number) => Promise<void>;
   toggleCommunityRun: (runId: string) => Promise<void>;
-  completeOnboarding: (data?: Partial<OnboardingState>) => Promise<void>;
+  completeOnboarding: (
+    data?: Partial<OnboardingState>,
+  ) => Promise<OnboardingState | void>;
   resetOnboarding: () => Promise<void>;
   refreshAllData: () => Promise<void>;
 }
@@ -74,6 +76,13 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth(); // 0-11
+  const currentDay = today.getDate();
+  const currentWeek = getWeekNumber(today);
+  const todayDateKey = formatDateKey(currentYear, currentMonth, currentDay);
+
   const [isOnboardingCompleted, setIsOnboardingCompleted] =
     useState<boolean>(false);
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -81,8 +90,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const [monthWorkouts, setMonthWorkouts] = useState<
     Record<string, WorkoutSession>
   >({});
-  const [selectedDay, setSelectedDayState] = useState<number>(14);
-  const [selectedDateKey, setSelectedDateKey] = useState<string>("2026-10-14");
+  const [selectedDay, setSelectedDayState] = useState<number>(currentDay);
+  const [selectedDateKey, setSelectedDateKey] = useState<string>(todayDateKey);
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutSession | null>(
     null,
   );
@@ -97,9 +106,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isCoachTyping, setIsCoachTyping] = useState<boolean>(false);
   const [communityRuns, setCommunityRuns] = useState<CommunityRun[]>([]);
   const [challenge, setChallenge] = useState<MonthlyChallenge | null>(null);
-  const [activeWeek, setActiveWeekState] = useState<number>(42);
-  const [activeMonth, setActiveMonthState] = useState<number>(9); // Octobre (index 9)
-  const [activeYear, setActiveYearState] = useState<number>(2026);
+  const [activeWeek, setActiveWeekState] = useState<number>(currentWeek);
+  const [activeMonth, setActiveMonthState] = useState<number>(currentMonth);
+  const [activeYear, setActiveYearState] = useState<number>(currentYear);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState<boolean>(false);
   const [multiWeekPlanSummary, setMultiWeekPlanSummary] = useState<
@@ -125,8 +134,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       ] = await Promise.all([
         onboardingService.getOnboardingState(),
         userService.getProfile(),
-        workoutService.getWeekWorkouts(42, 2026),
-        workoutService.getMonthWorkouts(9, 2026),
+        workoutService.getWeekWorkouts(currentWeek, currentYear),
+        workoutService.getMonthWorkouts(currentMonth, currentYear),
         chatService.getChatHistory(),
         chatService.getQuickPrompts(),
         communityService.getCommunityRuns(),
@@ -142,11 +151,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       setCommunityRuns(runs);
       setChallenge(monthChallenge);
 
-      // Sélection de la séance par défaut (Mercredi 14 Octobre de la semaine 42)
+      // Sélection de la séance par défaut (séance du jour en priorité ou première de la semaine)
       const defaultSession =
-        weekWorkouts.find(
-          (w) => w.dateKey === "2026-10-14" || w.dayNumber === 14,
-        ) ||
+        weekWorkouts.find((w) => w.dateKey === todayDateKey) ||
+        weekWorkouts.find((w) => w.dayNumber === currentDay) ||
         weekWorkouts[0] ||
         null;
 
@@ -161,7 +169,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [currentWeek, currentYear, currentMonth, currentDay, todayDateKey]);
 
   useEffect(() => {
     loadData();
@@ -194,7 +202,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           setSelectedWorkout(currentInWeek);
         } else {
           const fallbackSession =
-            newWeekWorkouts.find((w) => w.dayNumber === 14 && week === 42) ||
+            newWeekWorkouts.find((w) => w.dateKey === todayDateKey) ||
             newWeekWorkouts[0] ||
             null;
 
@@ -321,15 +329,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         });
         setChatMessages((prev) => [...prev, coachReply]);
 
-        // Si le coach IA a automatiquement reformulé et enregistré une règle de vie à l'envoi du message, on synchronise le profil localement
+        // Si le coach IA a automatiquement reformulé et enregistré une règle de vie à l'envoi du message, on synchronise le profil localement avec anti-doublon
         if (
           coachReply.suggestedAction?.type === "add_life_rule" &&
           coachReply.suggestedAction.ruleData
         ) {
-          const updatedRules = await userService.addRule(
-            coachReply.suggestedAction.ruleData,
-          );
-          setUser((prev) => (prev ? { ...prev, rules: updatedRules } : prev));
+          const ruleData = coachReply.suggestedAction.ruleData;
+          const cleanTitle = (ruleData.title || "").trim().toLowerCase();
+          const cleanDesc = (ruleData.description || "").trim().toLowerCase();
+          const alreadyExists = (user?.rules || []).some((r) => {
+            const rTitle = (r.title || "").trim().toLowerCase();
+            const rDesc = (r.description || "").trim().toLowerCase();
+            return (
+              rTitle === cleanTitle ||
+              rDesc === cleanDesc ||
+              (cleanTitle.length > 3 && rTitle.includes(cleanTitle)) ||
+              (cleanDesc.length > 5 && rDesc.includes(cleanDesc))
+            );
+          });
+          if (!alreadyExists) {
+            const updatedRules = await userService.addRule(ruleData);
+            setUser((prev) => (prev ? { ...prev, rules: updatedRules } : prev));
+          }
         }
 
         // Si le coach IA a recalculé dynamiquement la séance ou la semaine complète suite au message de l'utilisateur,
@@ -426,8 +447,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             icon: "calendar-lock",
           };
 
-          const updatedRules = await userService.addRule(ruleToCreate);
-          setUser((prev) => (prev ? { ...prev, rules: updatedRules } : prev));
+          const cleanTitle = (ruleToCreate.title || "").trim().toLowerCase();
+          const cleanDesc = (ruleToCreate.description || "").trim().toLowerCase();
+          const alreadyExists = (user?.rules || []).some((r) => {
+            const rTitle = (r.title || "").trim().toLowerCase();
+            const rDesc = (r.description || "").trim().toLowerCase();
+            return (
+              rTitle === cleanTitle ||
+              rDesc === cleanDesc ||
+              (cleanTitle.length > 3 && rTitle.includes(cleanTitle)) ||
+              (cleanDesc.length > 5 && rDesc.includes(cleanDesc))
+            );
+          });
+          if (!alreadyExists) {
+            const updatedRules = await userService.addRule(ruleToCreate);
+            setUser((prev) => (prev ? { ...prev, rules: updatedRules } : prev));
+          }
 
           setChatMessages((prev) =>
             prev.map((msg) => {
@@ -521,7 +556,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const completeOnboarding = useCallback(
     async (data?: Partial<OnboardingState>) => {
       try {
-        await onboardingService.completeOnboarding(data);
+        const result = await onboardingService.completeOnboarding(data);
         setIsOnboardingCompleted(true);
         const [refreshedProfile, refreshedWeek, refreshedMonth, refreshedChat] =
           await Promise.all([
@@ -536,9 +571,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         setChatMessages(refreshedChat);
 
         const defaultSession =
-          refreshedWeek.find(
-            (w) => w.dateKey === "2026-10-14" || w.dayNumber === 14,
-          ) ||
+          refreshedWeek.find((w) => w.dateKey === todayDateKey) ||
+          refreshedWeek.find((w) => w.dayNumber === currentDay) ||
           refreshedWeek[0] ||
           null;
         setSelectedWorkout(defaultSession);
@@ -546,6 +580,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           setSelectedDateKey(defaultSession.dateKey);
           setSelectedDayState(defaultSession.dayNumber);
         }
+        return result;
       } catch (err) {
         console.error("Failed to complete onboarding:", err);
       }
@@ -557,10 +592,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const resetOnboarding = useCallback(async () => {
     try {
       setIsOnboardingCompleted(false);
+      setWorkouts([]);
+      setMonthWorkouts({});
+      setChatMessages([]);
+      setSelectedWorkout(null);
       await onboardingService.resetOnboarding();
       await chatService.resetChat();
       setUser((prev) =>
-        prev ? { ...prev, isOnboardingCompleted: false } : null,
+        prev ? { ...prev, isOnboardingCompleted: false, rules: [] } : null,
       );
     } catch (err) {
       console.error("Failed to reset onboarding:", err);

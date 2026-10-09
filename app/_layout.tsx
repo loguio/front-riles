@@ -4,15 +4,35 @@ import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { PostHogProvider } from "posthog-react-native";
 import { Colors } from "../src/constants/theme";
 import { AuthProvider, useAuth } from "../src/context/AuthContext";
 import { AppProvider, useApp } from "../src/context/AppContext";
+import { posthogClient, analytics } from "../src/services";
 
 function RootNavigation() {
   const { session, isLoading: isAuthLoading } = useAuth();
   const { isOnboardingCompleted, isLoading: isAppLoading } = useApp();
   const segments = useSegments();
   const router = useRouter();
+
+  // Suivi automatique de la navigation et des écrans visités
+  useEffect(() => {
+    const currentPath = (segments as string[]).join("/") || "home";
+    analytics.trackScreen(currentPath);
+  }, [segments]);
+
+  // Identification automatique de l'utilisateur connecté dans PostHog
+  useEffect(() => {
+    if (session?.user?.id) {
+      analytics.identifyUser(session.user.id, {
+        email: session.user.email,
+        name:
+          session.user.user_metadata?.full_name ||
+          session.user.user_metadata?.name,
+      });
+    }
+  }, [session]);
 
   useEffect(() => {
     // Ne pas rediriger tant que la session Supabase ou les données initiales chargent
@@ -30,8 +50,8 @@ function RootNavigation() {
       return;
     }
 
-    // Si l'utilisateur n'est pas connecté et n'est pas sur l'onboarding -> rediriger vers l'onboarding
-    if (!session) {
+    // Si l'utilisateur n'est pas connecté ou n'a pas finalisé son onboarding -> rediriger vers l'onboarding
+    if (!session || !isOnboardingCompleted) {
       router.replace("/onboarding" as any);
       return;
     }
@@ -80,13 +100,15 @@ function RootNavigation() {
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider style={{ backgroundColor: Colors.background }}>
-      <AuthProvider>
-        <AppProvider>
-          <RootNavigation />
-        </AppProvider>
-      </AuthProvider>
-    </SafeAreaProvider>
+    <PostHogProvider client={posthogClient}>
+      <SafeAreaProvider style={{ backgroundColor: Colors.background }}>
+        <AuthProvider>
+          <AppProvider>
+            <RootNavigation />
+          </AppProvider>
+        </AuthProvider>
+      </SafeAreaProvider>
+    </PostHogProvider>
   );
 }
 

@@ -24,6 +24,7 @@ import { EffortSlider } from "../../src/components/ui/Slider";
 import { DashboardSkeleton } from "../../src/components/ui/DashboardSkeleton";
 import { useApp } from "../../src/context/AppContext";
 import { useTranslation } from "react-i18next";
+import { analytics } from "../../src/services";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -59,6 +60,7 @@ export default function HomeScreen() {
   const handleSaveRpe = async () => {
     try {
       setIsSavingRpe(true);
+      analytics.trackEvent("home_rpe_checkin_saved", { rpe_value: currentRpe });
       await submitRpe(currentRpe);
       setIsRpeSaved(true);
     } catch (err) {
@@ -291,10 +293,10 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* AI adjustment message */}
+        {/* Preservation message */}
         <View style={styles.aiMessageContainer}>
-          <Ionicons
-            name="sparkles"
+          <MaterialCommunityIcons
+            name="shield-check-outline"
             size={18}
             color={Colors.primary}
             style={styles.aiSparkleIcon}

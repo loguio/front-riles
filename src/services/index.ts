@@ -5,3 +5,4 @@ export * from "./chatService";
 export * from "./onboardingService";
 export * from "./userService";
 export * from "./communityService";
+export * from "./analytics";

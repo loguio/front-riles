@@ -22,6 +22,7 @@ import { Card } from "../../src/components/ui/Card";
 import { LanguageSelector } from "../../src/components/ui/LanguageSelector";
 import { useApp } from "../../src/context/AppContext";
 import { useTranslation } from "react-i18next";
+import { analytics } from "../../src/services";
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -48,6 +49,7 @@ export default function ProfileScreen() {
   const rules = user?.rules || [];
 
   const handleRestartOnboarding = async () => {
+    analytics.trackEvent("profile_restart_onboarding_clicked");
     await resetOnboarding();
     router.replace("/onboarding" as any);
   };

@@ -28,6 +28,8 @@ import {
   getMonthTitle,
   getPrevMonth,
   getNextMonth,
+  formatDateKey,
+  getWeekNumber,
 } from "../../src/utils/dateUtils";
 
 export default function CalendarScreen() {
@@ -52,6 +54,28 @@ export default function CalendarScreen() {
   const [isMonthExpanded, setIsMonthExpanded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [isChangingWeek, setIsChangingWeek] = useState(false);
+
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth();
+  const currentDay = today.getDate();
+  const currentWeek = getWeekNumber(today);
+  const todayDateKey = formatDateKey(currentYear, currentMonth, currentDay);
+
+  const isViewingToday =
+    selectedDateKey === todayDateKey &&
+    activeWeek === currentWeek &&
+    activeYear === currentYear;
+
+  const handleSnapToToday = async () => {
+    try {
+      setIsChangingWeek(true);
+      await setActiveWeek(currentWeek, currentYear);
+      await setSelectedDay(currentDay, currentMonth, currentYear);
+    } finally {
+      setIsChangingWeek(false);
+    }
+  };
 
   const formatDurationSec = (sec?: number, fallback?: string): string => {
     if (!sec || sec <= 0) return fallback || "—";
@@ -156,6 +180,20 @@ export default function CalendarScreen() {
         <View style={styles.calendarHeaderRow}>
           <View style={styles.weekTitleRow}>
             <Text style={styles.weekLabel}>Semaine {activeWeek}</Text>
+            {!isViewingToday && (
+              <TouchableOpacity
+                style={styles.todayPillBtn}
+                activeOpacity={0.75}
+                onPress={handleSnapToToday}
+              >
+                <Ionicons
+                  name="today-outline"
+                  size={12}
+                  color={Colors.primary}
+                />
+                <Text style={styles.todayPillText}>Aujourd'hui</Text>
+              </TouchableOpacity>
+            )}
             {isChangingWeek && (
               <ActivityIndicator size="small" color={Colors.primary} />
             )}
@@ -642,10 +680,10 @@ export default function CalendarScreen() {
             />
           )}
 
-          {/* AI Note */}
+          {/* Session Note */}
           {currentSession.aiAdjustmentNote && (
             <View style={styles.sessionAiNoteBox}>
-              <Ionicons name="sparkles" size={16} color={Colors.primary} />
+              <Feather name="info" size={15} color={Colors.primary} />
               <Text style={styles.sessionAiNoteText}>
                 {currentSession.aiAdjustmentNote}
               </Text>
@@ -815,6 +853,22 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.md,
     fontWeight: "700",
     color: Colors.textPrimary,
+  },
+  todayPillBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.primaryMuted,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+  },
+  todayPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.primary,
   },
   weekArrowsRow: {
     flexDirection: "row",
