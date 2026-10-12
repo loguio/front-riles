@@ -43,6 +43,7 @@ export default function HomeScreen() {
     isLoading,
     errorMessage,
     refreshAllData,
+    setSelectedDateKey,
   } = useApp();
   const { t } = useTranslation(["home", "common"]);
 
@@ -163,6 +164,18 @@ export default function HomeScreen() {
     .sort((a, b) => b.dateKey.localeCompare(a.dateKey));
   const lastCompletedSession = doneSessions[0] || null;
 
+  // Prochaine séance prévue (utile notamment quand aujourd'hui est un jour de repos ou déjà fait)
+  const upcomingSessions = (allSessions.length > 0 ? allSessions : workouts)
+    .filter(
+      (w) =>
+        w.dateKey > todayDateKey &&
+        !w.isRestDay &&
+        w.status !== "rest" &&
+        !isCommuteWorkout(w),
+    )
+    .sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+  const nextUpcomingSession = upcomingSessions[0] || null;
+
   // Calcul de la micro-progression kilométrique de la semaine active (Course à pied uniquement)
   const isRunningSession = (w?: any): boolean => {
     if (!w || w.isRestDay) return false;
@@ -213,6 +226,15 @@ export default function HomeScreen() {
       ? Math.min(100, Math.round((weekDoneKm / weekPlannedKm) * 100))
       : 0;
 
+  const heroEffortBlocks = Array.isArray(heroSession?.effortBlocks)
+    ? heroSession.effortBlocks
+    : [];
+
+  const handleOpenDayInCalendar = async (dateKey: string) => {
+    await setSelectedDateKey(dateKey);
+    router.push("/(tabs)/calendar");
+  };
+
   if (isLoading && !user) {
     return <DashboardSkeleton />;
   }
@@ -247,7 +269,7 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {/* 1. Header (Avatar, Date, Greeting) */}
+      {/* 1. Header (Avatar, Date, Greeting + Accès direct Roadmap) */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
@@ -255,20 +277,33 @@ export default function HomeScreen() {
             onPress={() => router.push("/(tabs)/profile")}
             activeOpacity={0.8}
           >
-            <Text style={styles.avatarText}>{user?.initials || "ML"}</Text>
+            <Text style={styles.avatarText}>{user?.initials || "MB"}</Text>
           </TouchableOpacity>
           <View style={styles.greetingContainer}>
-            <Text style={styles.headerDate}>
-              {todayFullDateLabel}
-            </Text>
+            <Text style={styles.headerDate}>{todayFullDateLabel}</Text>
             <Text style={styles.headerTitle}>
-              {t("home:header.greeting", { name: user?.name || "Marius" })}
+              {t("home:header.greeting", {
+                name: user?.name?.split(" ")[0] || "Athlète",
+              })}
             </Text>
           </View>
         </View>
+
+        <TouchableOpacity
+          style={styles.headerRoadmapBtn}
+          activeOpacity={0.85}
+          onPress={() => router.push("/roadmap" as any)}
+        >
+          <MaterialCommunityIcons
+            name="map-marker-path"
+            size={15}
+            color={Colors.primary}
+          />
+          <Text style={styles.headerRoadmapBtnText}>Roadmap</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* 2. Micro-progression de la semaine */}
+      {/* 2. Micro-progression & Aperçu des 7 jours de la semaine */}
       <View style={styles.weekProgressStrip}>
         <View style={styles.weekProgressInfoRow}>
           <View style={styles.weekProgressLabelLeft}>
@@ -287,11 +322,13 @@ export default function HomeScreen() {
             </Text>
             {weekPlannedKm > 0 ? (
               <Text style={styles.weekProgressTargetText}>
-                {" "}/ {weekPlannedKm.toFixed(0)} km
+                {" "}
+                / {weekPlannedKm.toFixed(0)} km
               </Text>
             ) : null}
           </Text>
         </View>
+
         <View style={styles.weekProgressBarBg}>
           <View
             style={[
@@ -300,29 +337,90 @@ export default function HomeScreen() {
             ]}
           />
         </View>
+
+        {/* Mini-timeline interactive des 7 jours de la semaine en cours */}
+        <View style={styles.miniWeekDaysRow}>
+          {currentWeekDays.map((day, idx) => {
+            const w = currentWeekSessions[idx];
+            const isToday = day.dateKey === todayDateKey;
+            const isDone =
+              w?.status === "done" && !w?.isRestDay && !isCommuteWorkout(w);
+            const isRest = !w || w.isRestDay || w.status === "rest";
+
+            return (
+              <TouchableOpacity
+                key={day.dateKey}
+                style={[
+                  styles.miniDayPill,
+                  isToday && styles.miniDayPillToday,
+                ]}
+                activeOpacity={0.75}
+                onPress={() => handleOpenDayInCalendar(day.dateKey)}
+              >
+                <Text
+                  style={[
+                    styles.miniDayLabel,
+                    isToday && styles.miniDayLabelToday,
+                  ]}
+                >
+                  {day.dayName.slice(0, 1)}
+                </Text>
+                <View
+                  style={[
+                    styles.miniDayStatusCircle,
+                    isDone && styles.miniDayStatusDone,
+                    isToday && !isDone && styles.miniDayStatusToday,
+                    !isDone && !isToday && !isRest && styles.miniDayStatusPlanned,
+                  ]}
+                >
+                  {isDone ? (
+                    <Feather name="check" size={10} color={Colors.textWhite} />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.miniDayNumText,
+                        isToday && styles.miniDayNumTextToday,
+                        isRest && !isToday && { color: Colors.textMuted },
+                      ]}
+                    >
+                      {day.dayNumber}
+                    </Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
-      {/* 3. Hero Card (Aujourd'hui • 18:30) */}
+      {/* 3. Hero Card : Séance du Jour complète et structurée */}
       <View style={styles.heroCard}>
-        {/* Decorative background shapes */}
         <View style={styles.heroCurveOne} />
         <View style={styles.heroCurveTwo} />
 
+        {/* En-tête de la carte : Statut + Catégorie/Zone */}
         <View style={styles.heroTopRow}>
-          <Text style={styles.heroTimeLabel}>
-            {isHeroDone
-              ? `SÉANCE RÉALISÉE${heroSession?.sourceProvider ? ` • ${heroSession.sourceProvider.toUpperCase()}` : ""}`
-              : isHeroRest
-                ? "AUJOURD'HUI • JOUR DE REPOS"
-                : heroSession?.timeLabel || "AUJOURD'HUI • 18:30"}
-          </Text>
-          <TouchableOpacity
-            style={styles.heroLightningBtn}
-            activeOpacity={0.8}
-            onPress={() => router.push("/(tabs)/calendar")}
-          >
-            <Ionicons name="flash" size={16} color={Colors.textWhite} />
-          </TouchableOpacity>
+          <View style={styles.heroTopBadgeRow}>
+            <Text style={styles.heroTimeLabel}>
+              {isHeroDone
+                ? `SÉANCE RÉALISÉE${heroSession?.sourceProvider ? ` • ${heroSession.sourceProvider.toUpperCase()}` : ""}`
+                : isHeroRest
+                  ? "AUJOURD'HUI • JOUR DE REPOS"
+                  : `AUJOURD'HUI • ${heroSession?.timeLabel || "AU PROGRAMME"}`}
+            </Text>
+          </View>
+
+          {!isHeroRest &&
+            (heroSession?.targetZoneLabel || heroSession?.category) && (
+              <View style={styles.heroZoneTopPill}>
+                <Text style={styles.heroZoneTopPillText}>
+                  {heroSession?.targetZoneLabel || heroSession?.category}
+                  {heroSession?.targetZoneBpm && !isHeroDone
+                    ? ` (${heroSession.targetZoneBpm})`
+                    : ""}
+                </Text>
+              </View>
+            )}
         </View>
 
         <Text style={styles.heroTitle}>
@@ -330,91 +428,248 @@ export default function HomeScreen() {
             (isHeroRest ? "Jour de repos" : "Footing Fondamental Z2")}
         </Text>
 
-        {/* Cartouche épuré des métriques de la séance du jour */}
+        {/* Contenu principal selon l'état de la séance du jour */}
         {isHeroRest ? (
-          <View style={styles.heroRestBox}>
-            <Ionicons
-              name="moon-outline"
-              size={18}
-              color="rgba(255, 255, 255, 0.95)"
-            />
-            <Text style={styles.heroRestText}>
-              Récupération & assimilation : laisse ton corps régénérer ses fibres et recharger ses réserves d'énergie.
-            </Text>
+          <View style={styles.heroRestContainer}>
+            <View style={styles.heroRestBox}>
+              <Ionicons
+                name="moon-outline"
+                size={18}
+                color="rgba(255, 255, 255, 0.95)"
+              />
+              <Text style={styles.heroRestText}>
+                {heroSession?.aiAdjustmentNote ||
+                  "Journée d'assimilation physiologique : laisse ton corps régénérer ses fibres et consolider les adaptations des dernières séances."}
+              </Text>
+            </View>
+
+            {nextUpcomingSession && (
+              <TouchableOpacity
+                style={styles.heroNextWorkoutPreview}
+                activeOpacity={0.85}
+                onPress={() =>
+                  handleOpenDayInCalendar(nextUpcomingSession.dateKey)
+                }
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.heroNextWorkoutSuper}>
+                    PROCHAINE SÉANCE PRÉVUE •{" "}
+                    {nextUpcomingSession.dayName?.toUpperCase()}{" "}
+                    {nextUpcomingSession.dayNumber}
+                  </Text>
+                  <Text
+                    style={styles.heroNextWorkoutTitle}
+                    numberOfLines={1}
+                  >
+                    {nextUpcomingSession.title}
+                  </Text>
+                  <Text style={styles.heroNextWorkoutMeta}>
+                    {nextUpcomingSession.distance} ({nextUpcomingSession.duration}
+                    ) • Allure cible {nextUpcomingSession.targetPace || "Z2"}
+                  </Text>
+                </View>
+                <Feather
+                  name="chevron-right"
+                  size={18}
+                  color={Colors.textWhite}
+                />
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
-          <View style={styles.heroMetricsCartouche}>
-            <View style={styles.heroMetricItem}>
-              <Text style={styles.heroMetricLabel}>DISTANCE</Text>
-              <Text style={styles.heroMetricValue}>
-                {isHeroDone && heroSession?.actualDistanceKm !== undefined
-                  ? `${heroSession.actualDistanceKm.toFixed(1).replace(".", ",")} km`
-                  : heroSession?.distance || "—"}
-              </Text>
+          <>
+            {/* Cartouche des 3 métriques principales */}
+            <View style={styles.heroMetricsCartouche}>
+              <View style={styles.heroMetricItem}>
+                <Text style={styles.heroMetricLabel}>DISTANCE</Text>
+                <Text style={styles.heroMetricValue}>
+                  {isHeroDone && heroSession?.actualDistanceKm !== undefined
+                    ? `${heroSession.actualDistanceKm.toFixed(1).replace(".", ",")} km`
+                    : heroSession?.distance || "—"}
+                </Text>
+              </View>
+              <View style={styles.heroMetricDivider} />
+              <View style={styles.heroMetricItem}>
+                <Text style={styles.heroMetricLabel}>DURÉE</Text>
+                <Text style={styles.heroMetricValue}>
+                  {isHeroDone && heroSession?.actualDurationSec
+                    ? formatDurationSec(heroSession.actualDurationSec)
+                    : heroSession?.duration || "—"}
+                </Text>
+              </View>
+              <View style={styles.heroMetricDivider} />
+              <View style={styles.heroMetricItem}>
+                <Text style={styles.heroMetricLabel}>
+                  {isHeroDone ? "ALLURE" : "ALLURE CIBLE"}
+                </Text>
+                <Text style={styles.heroMetricValue}>
+                  {isHeroDone && heroSession?.actualPace
+                    ? heroSession.actualPace
+                    : heroSession?.targetPace || "—"}
+                </Text>
+              </View>
             </View>
-            <View style={styles.heroMetricDivider} />
-            <View style={styles.heroMetricItem}>
-              <Text style={styles.heroMetricLabel}>DURÉE</Text>
-              <Text style={styles.heroMetricValue}>
-                {isHeroDone && heroSession?.actualDurationSec
-                  ? formatDurationSec(heroSession.actualDurationSec)
-                  : heroSession?.duration || "—"}
-              </Text>
-            </View>
-            <View style={styles.heroMetricDivider} />
-            <View style={styles.heroMetricItem}>
-              <Text style={styles.heroMetricLabel}>
-                {isHeroDone ? "ALLURE" : "ALLURE CIBLE"}
-              </Text>
-              <Text style={styles.heroMetricValue}>
-                {isHeroDone && heroSession?.actualPace
-                  ? heroSession.actualPace
-                  : heroSession?.targetPace || "—"}
-              </Text>
-            </View>
-          </View>
+
+            {/* Détails supplémentaires : Métriques Strava (si faite) OU Structure des blocs (si prévue) */}
+            {isHeroDone ? (
+              <View style={styles.heroSubDetailsBox}>
+                <View style={styles.heroDoneMetricsRow}>
+                  {heroSession?.actualAvgHeartRate ? (
+                    <View style={styles.heroDoneChip}>
+                      <Ionicons
+                        name="heart"
+                        size={12}
+                        color="rgba(255,255,255,0.95)"
+                      />
+                      <Text style={styles.heroDoneChipText}>
+                        {heroSession.actualAvgHeartRate} bpm moy.
+                        {heroSession.actualMaxHeartRate
+                          ? ` (max ${heroSession.actualMaxHeartRate})`
+                          : ""}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {heroSession?.actualElevationGain !== undefined &&
+                  heroSession.actualElevationGain > 0 ? (
+                    <View style={styles.heroDoneChip}>
+                      <Feather
+                        name="trending-up"
+                        size={12}
+                        color="rgba(255,255,255,0.95)"
+                      />
+                      <Text style={styles.heroDoneChipText}>
+                        +{Math.round(heroSession.actualElevationGain)} m D+
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {heroSession?.actualCadence ? (
+                    <View style={styles.heroDoneChip}>
+                      <MaterialCommunityIcons
+                        name="shoe-print"
+                        size={12}
+                        color="rgba(255,255,255,0.95)"
+                      />
+                      <Text style={styles.heroDoneChipText}>
+                        {heroSession.actualCadence} spm
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {heroSession?.tss ? (
+                    <View style={styles.heroDoneChip}>
+                      <MaterialCommunityIcons
+                        name="lightning-bolt"
+                        size={12}
+                        color="rgba(255,255,255,0.95)"
+                      />
+                      <Text style={styles.heroDoneChipText}>
+                        Charge {heroSession.tss} TSS
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                {Array.isArray(heroSession?.secondaryActivities) &&
+                  heroSession.secondaryActivities.filter(
+                    (s: any) => !isCommuteWorkout(s),
+                  ).length > 0 && (
+                    <Text style={styles.heroSecondaryActivityNote}>
+                      +{" "}
+                      {
+                        heroSession.secondaryActivities.filter(
+                          (s: any) => !isCommuteWorkout(s),
+                        ).length
+                      }{" "}
+                      autre activité enregistrée aujourd'hui
+                    </Text>
+                  )}
+              </View>
+            ) : (
+              <View style={styles.heroSubDetailsBox}>
+                {heroEffortBlocks.length > 0 && (
+                  <View style={styles.heroBlocksSection}>
+                    <Text style={styles.heroBlocksHeaderLabel}>
+                      DÉROULÉ DE LA SÉANCE
+                    </Text>
+                    <View style={styles.heroBlocksList}>
+                      {heroEffortBlocks.slice(0, 4).map((b: any, idx: number) => (
+                        <View key={idx} style={styles.heroBlockItem}>
+                          <View style={styles.heroBlockDot} />
+                          <Text
+                            style={styles.heroBlockTitleText}
+                            numberOfLines={1}
+                          >
+                            {b.title}
+                          </Text>
+                          <Text style={styles.heroBlockDurText}>
+                            {b.durationLabel}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {heroSession?.aiAdjustmentNote ? (
+                  <View style={styles.heroCoachNoteRow}>
+                    <Feather
+                      name="compass"
+                      size={13}
+                      color="rgba(255, 255, 255, 0.9)"
+                    />
+                    <Text style={styles.heroCoachNoteText} numberOfLines={2}>
+                      {heroSession.aiAdjustmentNote}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            )}
+          </>
         )}
 
-        {/* Zone Cardio Pill (épuré, sans surcharge de pastilles) */}
-        {!isHeroRest && (heroSession?.targetZoneLabel || heroSession?.category) && (
-          <View style={styles.heroZoneBadge}>
-            <Text style={styles.heroZoneBadgeText}>
-              {heroSession?.targetZoneLabel || heroSession?.category}
-              {heroSession?.targetZoneBpm ? ` • ${heroSession.targetZoneBpm}` : ""}
-            </Text>
-          </View>
-        )}
+        {/* Barre d'actions de la séance du jour : Parler au coach + Ouvrir dans le calendrier */}
+        <View style={styles.heroActionsRow}>
+          <TouchableOpacity
+            style={styles.heroWhiteBtn}
+            activeOpacity={0.9}
+            onPress={() =>
+              router.push({
+                pathname: "/chat",
+                params: {
+                  from: "home",
+                  dateKey: todayDateKey,
+                  workoutTitle:
+                    heroSession?.title ||
+                    (isHeroRest ? "Jour de repos" : undefined),
+                },
+              } as any)
+            }
+          >
+            <View style={styles.heroWhiteBtnContent}>
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={19}
+                color={Colors.primary}
+              />
+              <Text style={styles.heroWhiteBtnText}>Parler au coach</Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={Colors.primary} />
+          </TouchableOpacity>
 
-        {/* Bouton direct vers le Coach */}
-        <TouchableOpacity
-          style={styles.heroWhiteBtn}
-          activeOpacity={0.9}
-          onPress={() =>
-            router.push({
-              pathname: "/chat",
-              params: {
-                from: "home",
-                dateKey: todayDateKey,
-                workoutTitle:
-                  heroSession?.title ||
-                  (isHeroRest ? "Jour de repos" : undefined),
-              },
-            } as any)
-          }
-        >
-          <View style={styles.heroWhiteBtnContent}>
-            <Ionicons
-              name="chatbubble-ellipses-outline"
-              size={20}
-              color={Colors.primary}
-            />
-            <Text style={styles.heroWhiteBtnText}>Parler au coach</Text>
-          </View>
-          <Feather name="chevron-right" size={20} color={Colors.primary} />
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.heroCalendarSecondaryBtn}
+            activeOpacity={0.85}
+            onPress={() => handleOpenDayInCalendar(todayDateKey)}
+          >
+            <Feather name="calendar" size={17} color={Colors.textWhite} />
+            <Text style={styles.heroCalendarSecondaryBtnText}>Détails</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* 3. Carte Dynamique : Check-in post-séance OU Forme & Disponibilité Banister */}
+      {/* 4. Carte Dynamique : Check-in post-séance OU Forme & Disponibilité Banister */}
       {showRpeInput ? (
         <Card style={styles.checkInCard}>
           <View style={styles.checkInHeaderRow}>
@@ -434,7 +689,6 @@ export default function HomeScreen() {
 
           <Text style={styles.checkInTitle}>Ressenti dernière{"\n"}sortie</Text>
 
-          {/* Interactive Effort Slider */}
           <EffortSlider
             value={currentRpe}
             min={1}
@@ -442,7 +696,6 @@ export default function HomeScreen() {
             onValueChange={handleSliderChange}
           />
 
-          {/* Save confirmation button */}
           <View style={styles.rpeActionRow}>
             <TouchableOpacity
               style={[styles.saveRpeBtn, isRpeSaved && styles.saveRpeBtnDone]}
@@ -477,7 +730,6 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Preservation message */}
           <View style={styles.aiMessageContainer}>
             <MaterialCommunityIcons
               name="shield-check-outline"
@@ -492,7 +744,6 @@ export default function HomeScreen() {
           </View>
         </Card>
       ) : (
-        /* Carte de Forme & Disponibilité du Jour (Readiness & Banister Load) */
         <Card style={styles.readinessCard}>
           <View style={styles.readinessHeaderRow}>
             <View style={styles.readinessHeaderLeft}>
@@ -504,12 +755,12 @@ export default function HomeScreen() {
                 />
               </View>
               <Text style={styles.readinessSubtitle}>
-                FORME DU JOUR • FRAÎCHEUR OPTIMALE
+                FORME DU JOUR • DISPONIBILITÉ
               </Text>
             </View>
             <View style={styles.readinessCardBadge}>
               <Text style={styles.readinessCardBadgeText}>
-                {user?.readinessScore ? `${user.readinessScore}%` : "88%"}
+                {user?.readinessScore ? `${user.readinessScore}%` : "85%"}
               </Text>
             </View>
           </View>
@@ -521,7 +772,7 @@ export default function HomeScreen() {
               ? "Jour de récupération. Tes muscles et articulations se régénèrent pour aborder tes prochaines séances avec un maximum de fraîcheur."
               : isHeroDone
                 ? "Séance du jour validée ! Tes données Strava sont intégrées à ta charge Banister pour recalibrer ton niveau de forme."
-                : `Score de fraîcheur à ${user?.readinessScore || 88}%. Tes indicateurs physiologiques sont au vert pour réaliser ta séance d'aujourd'hui.`}
+                : `Score de fraîcheur à ${user?.readinessScore || 85}%. Tes indicateurs physiologiques sont au vert pour réaliser ta séance d'aujourd'hui.`}
           </Text>
 
           {lastCompletedSession && (
@@ -540,7 +791,7 @@ export default function HomeScreen() {
                   Dernière séance :{" "}
                   {lastCompletedSession.actualDistanceKm
                     ? `${lastCompletedSession.actualDistanceKm.toFixed(1).replace(".", ",")} km`
-                    : "6,7 km"}{" "}
+                    : lastCompletedSession.distance || "—"}{" "}
                   ({lastCompletedSession.title}) • RPE {currentRpe}/10
                 </Text>
               </View>
@@ -550,7 +801,85 @@ export default function HomeScreen() {
         </Card>
       )}
 
-      {/* 4. Running Club Snippet Card */}
+      {/* 5. Carte Objectif & Roadmap du Plan Marathon */}
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => router.push("/roadmap" as any)}
+      >
+        <Card style={styles.roadmapCard}>
+          <View style={styles.roadmapCardTopRow}>
+            <View style={styles.roadmapBadgeRow}>
+              <View style={styles.roadmapIconBox}>
+                <MaterialCommunityIcons
+                  name="flag-checkered"
+                  size={18}
+                  color={Colors.primary}
+                />
+              </View>
+              <View>
+                <Text style={styles.roadmapSuperLabel}>
+                  MA PRÉPARATION • ROADMAP
+                </Text>
+                <Text style={styles.roadmapGoalTitle}>
+                  {user?.activeGoal?.title || "Marathon"}
+                  {user?.activeGoal?.target
+                    ? ` • ${user.activeGoal.target}`
+                    : ""}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.roadmapWeeksPill}>
+              <Text style={styles.roadmapWeeksPillText}>
+                {user?.activeGoal?.weeksRemaining
+                  ? `${user.activeGoal.weeksRemaining} sem.`
+                  : "En cours"}
+              </Text>
+            </View>
+          </View>
+
+          {user?.stravaSixMonthsSummary?.estimatedPaces && (
+            <View style={styles.roadmapPacesStrip}>
+              <View style={styles.roadmapPaceChip}>
+                <Text style={styles.roadmapPaceChipLabel}>Z2</Text>
+                <Text style={styles.roadmapPaceChipVal}>
+                  {user.stravaSixMonthsSummary.estimatedPaces.easyPaceZ2?.split(
+                    "–",
+                  )[0]?.trim() ||
+                    user.stravaSixMonthsSummary.estimatedPaces.easyPaceZ2 ||
+                    "—"}
+                </Text>
+              </View>
+              <View style={styles.roadmapPaceChip}>
+                <Text style={styles.roadmapPaceChipLabel}>Allure Cible</Text>
+                <Text style={styles.roadmapPaceChipVal}>
+                  {user.stravaSixMonthsSummary.estimatedPaces.marathonPaceZ3}
+                </Text>
+              </View>
+              <View style={styles.roadmapPaceChip}>
+                <Text style={styles.roadmapPaceChipLabel}>Seuil Z4</Text>
+                <Text style={styles.roadmapPaceChipVal}>
+                  {user.stravaSixMonthsSummary.estimatedPaces.thresholdPaceZ4}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          <View style={styles.roadmapFooterRow}>
+            <Text style={styles.roadmapRaceDateText}>
+              {user?.activeGoal?.raceDate
+                ? `Échéance : ${user.activeGoal.raceDate}`
+                : "Voir les 4 phases et le découpage des semaines"}
+            </Text>
+            <View style={styles.roadmapCtaRight}>
+              <Text style={styles.roadmapCtaText}>Voir la roadmap</Text>
+              <Feather name="arrow-right" size={14} color={Colors.primary} />
+            </View>
+          </View>
+        </Card>
+      </TouchableOpacity>
+
+      {/* 6. Running Club Snippet Card */}
       <TouchableOpacity
         style={styles.clubCard}
         activeOpacity={0.9}
@@ -631,11 +960,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
+    flex: 1,
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: Colors.primary,
     alignItems: "center",
     justifyContent: "center",
@@ -648,26 +978,43 @@ const styles = StyleSheet.create({
   },
   greetingContainer: {
     justifyContent: "center",
+    flex: 1,
   },
   headerDate: {
-    fontSize: Typography.sizes.xs,
+    fontSize: 11,
     color: Colors.textSecondary,
     fontWeight: "700",
-    letterSpacing: 0.8,
+    letterSpacing: 0.7,
     marginBottom: 2,
   },
   headerTitle: {
-    fontSize: Typography.sizes.xxl,
+    fontSize: Typography.sizes.xl,
     fontWeight: "800",
     color: Colors.textPrimary,
   },
+  headerRoadmapBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: Colors.primaryMuted,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.full,
+  },
+  headerRoadmapBtnText: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: "800",
+    color: Colors.primary,
+  },
 
-  // 2. Micro-progression hebdo
+  // 2. Micro-progression hebdo + Mini-timeline 7 jours
   weekProgressStrip: {
     backgroundColor: Colors.card,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
+    paddingVertical: 12,
     marginBottom: Spacing.lg,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -708,11 +1055,65 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderRadius: 3,
     overflow: "hidden",
+    marginBottom: 10,
   },
   weekProgressBarFill: {
     height: "100%",
     backgroundColor: Colors.primary,
     borderRadius: 3,
+  },
+  miniWeekDaysRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 2,
+  },
+  miniDayPill: {
+    alignItems: "center",
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: BorderRadius.md,
+  },
+  miniDayPillToday: {
+    backgroundColor: Colors.primaryMuted,
+  },
+  miniDayLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+    marginBottom: 4,
+  },
+  miniDayLabelToday: {
+    color: Colors.primary,
+    fontWeight: "800",
+  },
+  miniDayStatusCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.background,
+  },
+  miniDayStatusDone: {
+    backgroundColor: Colors.success,
+  },
+  miniDayStatusToday: {
+    backgroundColor: Colors.primary,
+  },
+  miniDayStatusPlanned: {
+    borderWidth: 1.5,
+    borderColor: Colors.primaryBorder,
+    backgroundColor: "#FFF9F7",
+  },
+  miniDayNumText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  miniDayNumTextToday: {
+    color: Colors.textWhite,
+    fontWeight: "800",
   },
 
   // 3. Hero Card
@@ -747,25 +1148,32 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
+    gap: 8,
+  },
+  heroTopBadgeRow: {
+    flex: 1,
   },
   heroTimeLabel: {
-    fontSize: Typography.sizes.xs,
-    color: "rgba(255, 255, 255, 0.9)",
-    fontWeight: "700",
-    letterSpacing: 0.8,
+    fontSize: 11,
+    color: "rgba(255, 255, 255, 0.92)",
+    fontWeight: "800",
+    letterSpacing: 0.7,
   },
-  heroLightningBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.25)",
-    alignItems: "center",
-    justifyContent: "center",
+  heroZoneTopPill: {
+    backgroundColor: "rgba(15, 23, 42, 0.22)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  heroZoneTopPillText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: Colors.textWhite,
   },
   heroTitle: {
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 25,
+    lineHeight: 31,
     fontWeight: "800",
     color: Colors.textWhite,
     marginBottom: Spacing.md,
@@ -774,10 +1182,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    backgroundColor: "rgba(255, 255, 255, 0.16)",
     borderRadius: BorderRadius.lg,
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     marginBottom: Spacing.md,
   },
   heroMetricItem: {
@@ -801,18 +1209,88 @@ const styles = StyleSheet.create({
     height: 24,
     backgroundColor: "rgba(255, 255, 255, 0.25)",
   },
-  heroZoneBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.full,
+  heroSubDetailsBox: {
     marginBottom: Spacing.lg,
+    gap: 10,
   },
-  heroZoneBadgeText: {
+  heroDoneMetricsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  heroDoneChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(15, 23, 42, 0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+  },
+  heroDoneChipText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.textWhite,
+  },
+  heroSecondaryActivityNote: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "rgba(255, 255, 255, 0.9)",
+  },
+  heroBlocksSection: {
+    backgroundColor: "rgba(15, 23, 42, 0.18)",
+    borderRadius: BorderRadius.lg,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  heroBlocksHeaderLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "rgba(255, 255, 255, 0.78)",
+    letterSpacing: 0.6,
+    marginBottom: 6,
+  },
+  heroBlocksList: {
+    gap: 5,
+  },
+  heroBlockItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  heroBlockDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: Colors.textWhite,
+  },
+  heroBlockTitleText: {
+    flex: 1,
     fontSize: Typography.sizes.xs,
     fontWeight: "700",
     color: Colors.textWhite,
+  },
+  heroBlockDurText: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: "800",
+    color: "rgba(255, 255, 255, 0.92)",
+  },
+  heroCoachNoteRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 7,
+    paddingHorizontal: 2,
+  },
+  heroCoachNoteText: {
+    flex: 1,
+    fontSize: Typography.sizes.xs,
+    lineHeight: 17,
+    color: "rgba(255, 255, 255, 0.92)",
+    fontWeight: "500",
+  },
+  heroRestContainer: {
+    marginBottom: Spacing.lg,
+    gap: 10,
   },
   heroRestBox: {
     flexDirection: "row",
@@ -821,7 +1299,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderRadius: BorderRadius.lg,
     padding: 12,
-    marginBottom: Spacing.lg,
   },
   heroRestText: {
     flex: 1,
@@ -830,14 +1307,47 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.95)",
     fontWeight: "500",
   },
+  heroNextWorkoutPreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.2)",
+    borderRadius: BorderRadius.lg,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  heroNextWorkoutSuper: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "rgba(255, 255, 255, 0.78)",
+    letterSpacing: 0.6,
+    marginBottom: 2,
+  },
+  heroNextWorkoutTitle: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: "800",
+    color: Colors.textWhite,
+  },
+  heroNextWorkoutMeta: {
+    fontSize: 11,
+    color: "rgba(255, 255, 255, 0.88)",
+    fontWeight: "600",
+    marginTop: 1,
+  },
+  heroActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   heroWhiteBtn: {
+    flex: 1,
     backgroundColor: Colors.card,
     borderRadius: BorderRadius.full,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 14,
-    paddingHorizontal: Spacing.xl,
+    paddingVertical: 13,
+    paddingHorizontal: Spacing.lg,
     ...Shadows.card,
   },
   heroWhiteBtnContent: {
@@ -847,11 +1357,25 @@ const styles = StyleSheet.create({
   },
   heroWhiteBtnText: {
     color: Colors.primary,
-    fontWeight: "700",
-    fontSize: Typography.sizes.md,
+    fontWeight: "800",
+    fontSize: Typography.sizes.sm,
+  },
+  heroCalendarSecondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(15, 23, 42, 0.22)",
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    borderRadius: BorderRadius.full,
+  },
+  heroCalendarSecondaryBtnText: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: "800",
+    color: Colors.textWhite,
   },
 
-  // 3. Check-in Card
+  // 4. Check-in Card
   checkInCard: {
     marginBottom: Spacing.xl,
   },
@@ -866,14 +1390,6 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontWeight: "700",
     letterSpacing: 0.8,
-  },
-  pulseIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.primaryMuted,
-    alignItems: "center",
-    justifyContent: "center",
   },
   checkInTitle: {
     fontSize: Typography.sizes.xxl,
@@ -928,7 +1444,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  // 3b. Readiness & Banister Form Card
+  // 4b. Readiness & Banister Form Card
   readinessCard: {
     marginBottom: Spacing.xl,
     backgroundColor: Colors.card,
@@ -1012,7 +1528,111 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 
-  // 4. Running Club Snippet Card
+  // 5. Roadmap Card on Home
+  roadmapCard: {
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+    backgroundColor: "#FFFDFB",
+  },
+  roadmapCardTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  roadmapBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  roadmapIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: Colors.primaryMuted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roadmapSuperLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: Colors.primary,
+    letterSpacing: 0.7,
+    marginBottom: 2,
+  },
+  roadmapGoalTitle: {
+    fontSize: Typography.sizes.md,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+  },
+  roadmapWeeksPill: {
+    backgroundColor: Colors.primaryMuted,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+  },
+  roadmapWeeksPillText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Colors.primary,
+  },
+  roadmapPacesStrip: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: Spacing.md,
+  },
+  roadmapPaceChip: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+  },
+  roadmapPaceChipLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
+  roadmapPaceChipVal: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+  },
+  roadmapFooterRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: Spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSubtle,
+  },
+  roadmapRaceDateText: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  roadmapCtaRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  roadmapCtaText: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: "800",
+    color: Colors.primary,
+  },
+
+  // 6. Running Club Snippet Card
   clubCard: {
     flexDirection: "row",
     alignItems: "center",

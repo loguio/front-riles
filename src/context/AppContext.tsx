@@ -324,6 +324,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       try {
         const { coachReply } = await chatService.sendMessage(text, {
           activeSessionTitle: selectedWorkout?.title,
+          dateKey: selectedDateKey,
           readinessScore: user?.readinessScore,
           lastRpe: rpeCheckIn?.rating,
           ...context,

@@ -262,4 +262,16 @@ export const workoutService = {
       return null;
     }
   },
+
+  /**
+   * Récupère la roadmap complète en temps réel du plan de préparation
+   */
+  async getPlanRoadmap(): Promise<any> {
+    try {
+      return await apiClient.get("workouts/roadmap");
+    } catch (error) {
+      console.warn("[Riles API] GET /workouts/roadmap error:", error);
+      return null;
+    }
+  },
 };

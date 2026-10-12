@@ -44,15 +44,16 @@ export default function ChatScreen() {
   } = useApp();
 
   const activeWorkoutTitle = workoutTitle || selectedWorkout?.title;
+  const activeDateKey = dateKey || selectedWorkout?.dateKey;
 
   // Suivi de l'ouverture du chat
   useEffect(() => {
     analytics.trackEvent("chat_session_opened", {
       from: from || "direct",
       has_context_workout: Boolean(activeWorkoutTitle),
-      workout_date_key: dateKey,
+      workout_date_key: activeDateKey,
     });
-  }, [from, activeWorkoutTitle, dateKey]);
+  }, [from, activeWorkoutTitle, activeDateKey]);
 
   // Auto-scroll on new message or typing
   useEffect(() => {
@@ -68,7 +69,7 @@ export default function ChatScreen() {
     });
     sendChatMessage(text, {
       activeSessionTitle: activeWorkoutTitle,
-      dateKey: dateKey || selectedWorkout?.dateKey,
+      dateKey: activeDateKey,
     });
   };
 
@@ -200,7 +201,7 @@ export default function ChatScreen() {
               <Text style={styles.contextBold}>
                 {activeWorkoutTitle || selectedWorkout?.title}
               </Text>
-              {dateKey ? ` • ${dateKey}` : ""}
+              {activeDateKey ? ` • ${activeDateKey}` : ""}
             </Text>
           </View>
         )}

@@ -437,6 +437,19 @@ export default function CalendarScreen() {
 
         <View style={styles.headerRightActions}>
           <TouchableOpacity
+            style={styles.generatePlanPill}
+            onPress={() => router.push("/roadmap" as any)}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons
+              name="map-marker-path"
+              size={15}
+              color={Colors.primary}
+            />
+            <Text style={styles.generatePlanPillText}>Roadmap</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={styles.infoGlossaryBtn}
             onPress={() => setShowGlossaryModal(true)}
             activeOpacity={0.7}

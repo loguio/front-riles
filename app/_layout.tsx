@@ -85,6 +85,7 @@ function RootNavigation() {
         <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="roadmap" options={{ headerShown: false }} />
         <Stack.Screen
           name="chat"
           options={{
