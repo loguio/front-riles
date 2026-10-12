@@ -28,7 +28,11 @@ import { analytics } from "../src/services";
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { from } = useLocalSearchParams<{ from?: string }>();
+  const { from, dateKey, workoutTitle } = useLocalSearchParams<{
+    from?: string;
+    dateKey?: string;
+    workoutTitle?: string;
+  }>();
   const scrollViewRef = useRef<ScrollView>(null);
 
   const {
@@ -39,13 +43,16 @@ export default function ChatScreen() {
     applyCoachAction,
   } = useApp();
 
+  const activeWorkoutTitle = workoutTitle || selectedWorkout?.title;
+
   // Suivi de l'ouverture du chat
   useEffect(() => {
     analytics.trackEvent("chat_session_opened", {
       from: from || "direct",
-      has_context_workout: Boolean(selectedWorkout?.title),
+      has_context_workout: Boolean(activeWorkoutTitle),
+      workout_date_key: dateKey,
     });
-  }, [from, selectedWorkout?.title]);
+  }, [from, activeWorkoutTitle, dateKey]);
 
   // Auto-scroll on new message or typing
   useEffect(() => {
@@ -57,10 +64,11 @@ export default function ChatScreen() {
   const handleSend = (text: string) => {
     analytics.trackEvent("chat_message_sent", {
       message_length: text.length,
-      has_context_workout: Boolean(selectedWorkout?.title),
+      has_context_workout: Boolean(activeWorkoutTitle),
     });
     sendChatMessage(text, {
-      activeSessionTitle: selectedWorkout?.title,
+      activeSessionTitle: activeWorkoutTitle,
+      dateKey: dateKey || selectedWorkout?.dateKey,
     });
   };
 
@@ -184,12 +192,15 @@ export default function ChatScreen() {
         )}
 
         {/* 2. Session Context Pill */}
-        {selectedWorkout && (
+        {(activeWorkoutTitle || selectedWorkout) && (
           <View style={styles.contextBanner}>
             <Ionicons name="flash-outline" size={14} color={Colors.primary} />
             <Text style={styles.contextText} numberOfLines={1}>
-              Séance en cours :{" "}
-              <Text style={styles.contextBold}>{selectedWorkout.title}</Text>
+              Séance ciblée :{" "}
+              <Text style={styles.contextBold}>
+                {activeWorkoutTitle || selectedWorkout?.title}
+              </Text>
+              {dateKey ? ` • ${dateKey}` : ""}
             </Text>
           </View>
         )}
@@ -230,7 +241,11 @@ export default function ChatScreen() {
           <ChatInput
             onSend={handleSend}
             disabled={isCoachTyping}
-            placeholder="Explique ton problème, imprévu ou règle au coach..."
+            placeholder={
+              activeWorkoutTitle
+                ? `Pose ta question au coach sur « ${activeWorkoutTitle} »...`
+                : "Pose ta question, partage tes sensations ou adapte ton plan..."
+            }
           />
         </View>
       </View>

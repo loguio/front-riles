@@ -99,7 +99,7 @@ function buildLocalGoalReformulation(rawGoal: string): GoalReformulationResult {
   const blockedDays = days.filter((d) => lower.includes(d));
   if (blockedDays.length > 0) {
     extractedRules.push({
-      title: "Jours sanctuarisés",
+      title: "Jours indisponibles",
       description: `Aucune séance programmée le ${blockedDays.join(", ")}.`,
       icon: "calendar-lock",
     });

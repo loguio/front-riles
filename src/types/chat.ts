@@ -33,6 +33,7 @@ export interface QuickPrompt {
 
 export interface CoachContext {
   activeSessionTitle?: string;
+  dateKey?: string;
   readinessScore?: number;
   lastRpe?: number;
 }

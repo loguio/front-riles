@@ -25,7 +25,11 @@ import { DashboardSkeleton } from "../../src/components/ui/DashboardSkeleton";
 import { useApp } from "../../src/context/AppContext";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../src/services";
-import { formatDateKey } from "../../src/utils/dateUtils";
+import {
+  formatDateKey,
+  getDaysOfWeek,
+  getWeekNumber,
+} from "../../src/utils/dateUtils";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -120,12 +124,94 @@ export default function HomeScreen() {
   const isHeroDone = heroSession?.status === "done";
   const isHeroRest = heroSession?.isRestDay || heroSession?.status === "rest";
 
-  // Récupération de la dernière vraie séance terminée (sur tout le mois / historique)
+  const formatDurationSec = (sec?: number, fallback?: string): string => {
+    if (!sec || sec <= 0) return fallback || "—";
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    if (h > 0) {
+      return `${h}h${String(m).padStart(2, "0")}`;
+    }
+    return `${m} min`;
+  };
+
+  const isCommuteWorkout = (w?: any): boolean => {
+    if (!w) return false;
+    if (w.isCommute) return true;
+    const cat = (w.category || "").toLowerCase();
+    const title = (w.title || "").toLowerCase();
+    return (
+      cat.includes("déplacement") ||
+      cat.includes("deplacement") ||
+      cat.includes("transport") ||
+      cat.includes("vélotaf") ||
+      cat.includes("velotaf") ||
+      title.includes("déplacement") ||
+      title.includes("deplacement") ||
+      title.includes("transport") ||
+      title.includes("vélotaf") ||
+      title.includes("velotaf") ||
+      title.includes("trajet") ||
+      title.includes("boulot") ||
+      title.includes("travail")
+    );
+  };
+
+  // Récupération de la dernière vraie séance terminée (hors trajets vélotaf)
   const allSessions = Object.values(monthWorkouts || {});
   const doneSessions = (allSessions.length > 0 ? allSessions : workouts)
-    .filter((w) => w.status === "done" && !w.isRestDay)
+    .filter((w) => w.status === "done" && !w.isRestDay && !isCommuteWorkout(w))
     .sort((a, b) => b.dateKey.localeCompare(a.dateKey));
   const lastCompletedSession = doneSessions[0] || null;
+
+  // Calcul de la micro-progression kilométrique de la semaine active (Course à pied uniquement)
+  const isRunningSession = (w?: any): boolean => {
+    if (!w || w.isRestDay) return false;
+    if (isCommuteWorkout(w)) return false;
+    const cat = (w.category || "").toLowerCase();
+    const title = (w.title || "").toLowerCase();
+    if (
+      cat.includes("vélo") ||
+      cat.includes("cycl") ||
+      title.includes("ride") ||
+      title.includes("vélo")
+    ) {
+      return false;
+    }
+    if (w.sportType) return w.sportType === "running";
+    return true;
+  };
+
+  const currentWeekNum = getWeekNumber(today);
+  const currentWeekDays = getDaysOfWeek(currentYear, currentWeekNum);
+  const currentWeekSessions = currentWeekDays.map(
+    (d) =>
+      monthWorkouts?.[d.dateKey] ||
+      workouts.find((w) => w.dateKey === d.dateKey),
+  );
+  const weekDoneKm = currentWeekSessions.reduce((sum, w) => {
+    let dayKm = isRunningSession(w) ? (w?.actualDistanceKm || 0) : 0;
+    if (Array.isArray(w?.secondaryActivities)) {
+      for (const sec of w.secondaryActivities) {
+        if (sec.sportType === "running" && !isCommuteWorkout(sec)) {
+          dayKm += sec.distanceKm || 0;
+        }
+      }
+    }
+    return sum + dayKm;
+  }, 0);
+  const weekPlannedKm = currentWeekSessions.reduce((sum, w) => {
+    if (isRunningSession(w) && w?.distance) {
+      const parsed = parseFloat(
+        w.distance.replace(",", ".").replace(/[^0-9.]/g, ""),
+      );
+      return sum + (isNaN(parsed) ? 0 : parsed);
+    }
+    return sum;
+  }, 0);
+  const weekProgressPct =
+    weekPlannedKm > 0
+      ? Math.min(100, Math.round((weekDoneKm / weekPlannedKm) * 100))
+      : 0;
 
   if (isLoading && !user) {
     return <DashboardSkeleton />;
@@ -182,7 +268,41 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* 2. Hero Card (Aujourd'hui • 18:30) */}
+      {/* 2. Micro-progression de la semaine */}
+      <View style={styles.weekProgressStrip}>
+        <View style={styles.weekProgressInfoRow}>
+          <View style={styles.weekProgressLabelLeft}>
+            <MaterialCommunityIcons
+              name="lightning-bolt"
+              size={15}
+              color={Colors.primary}
+            />
+            <Text style={styles.weekProgressLabel}>
+              Volume Semaine {currentWeekNum}
+            </Text>
+          </View>
+          <Text style={styles.weekProgressKmText}>
+            <Text style={styles.weekProgressDoneText}>
+              {weekDoneKm.toFixed(1).replace(".", ",")} km
+            </Text>
+            {weekPlannedKm > 0 ? (
+              <Text style={styles.weekProgressTargetText}>
+                {" "}/ {weekPlannedKm.toFixed(0)} km
+              </Text>
+            ) : null}
+          </Text>
+        </View>
+        <View style={styles.weekProgressBarBg}>
+          <View
+            style={[
+              styles.weekProgressBarFill,
+              { width: `${Math.max(4, Math.min(100, weekProgressPct))}%` },
+            ]}
+          />
+        </View>
+      </View>
+
+      {/* 3. Hero Card (Aujourd'hui • 18:30) */}
       <View style={styles.heroCard}>
         {/* Decorative background shapes */}
         <View style={styles.heroCurveOne} />
@@ -207,88 +327,80 @@ export default function HomeScreen() {
 
         <Text style={styles.heroTitle}>
           {heroSession?.title ||
-            (isHeroRest
-              ? "Repos Sanctuarisé & Régénération"
-              : "Footing Fondamental Z2")}
+            (isHeroRest ? "Jour de repos" : "Footing Fondamental Z2")}
         </Text>
 
-        {/* Tags row: affiche les vraies données exécutées si la séance est terminée (done), sinon les cibles */}
-        <View style={styles.heroTagsRow}>
-          {isHeroDone && heroSession?.actualDistanceKm !== undefined ? (
-            <>
-              <Badge
-                label={`Réalisé : ${heroSession.actualDistanceKm.toFixed(1).replace(".", ",")} km`}
-                variant="heroTag"
-                style={styles.heroTagItem}
-              />
-              {heroSession.actualPace && (
-                <Badge
-                  label={`Allure réelle : ${heroSession.actualPace}`}
-                  variant="heroTag"
-                  style={styles.heroTagItem}
-                />
-              )}
-              {heroSession.actualAvgHeartRate && (
-                <Badge
-                  label={`FC moy : ${heroSession.actualAvgHeartRate} bpm`}
-                  variant="heroTag"
-                  style={styles.heroTagItem}
-                />
-              )}
-            </>
-          ) : isHeroRest ? (
-            <>
-              <Badge
-                label="Repos"
-                variant="heroTag"
-                style={styles.heroTagItem}
-              />
-              <Badge
-                label="Récupération active"
-                variant="heroTag"
-                style={styles.heroTagItem}
-              />
-              <Badge
-                label="Sommeil & Hydratation"
-                variant="heroTag"
-                style={styles.heroTagItem}
-              />
-            </>
-          ) : heroSession?.tags && heroSession.tags.length > 0 ? (
-            heroSession.tags.map((tag, idx) => (
-              <Badge
-                key={idx}
-                label={tag}
-                variant="heroTag"
-                style={styles.heroTagItem}
-              />
-            ))
-          ) : (
-            <>
-              <Badge
-                label={heroSession?.distance || "5,1 km"}
-                variant="heroTag"
-                style={styles.heroTagItem}
-              />
-              <Badge
-                label={`Allure cible : ${heroSession?.targetPace || "5:35/km"}`}
-                variant="heroTag"
-                style={styles.heroTagItem}
-              />
-              <Badge
-                label={heroSession?.targetZoneLabel || "Zone 2"}
-                variant="heroTag"
-                style={styles.heroTagItem}
-              />
-            </>
-          )}
-        </View>
+        {/* Cartouche épuré des métriques de la séance du jour */}
+        {isHeroRest ? (
+          <View style={styles.heroRestBox}>
+            <Ionicons
+              name="moon-outline"
+              size={18}
+              color="rgba(255, 255, 255, 0.95)"
+            />
+            <Text style={styles.heroRestText}>
+              Récupération & assimilation : laisse ton corps régénérer ses fibres et recharger ses réserves d'énergie.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.heroMetricsCartouche}>
+            <View style={styles.heroMetricItem}>
+              <Text style={styles.heroMetricLabel}>DISTANCE</Text>
+              <Text style={styles.heroMetricValue}>
+                {isHeroDone && heroSession?.actualDistanceKm !== undefined
+                  ? `${heroSession.actualDistanceKm.toFixed(1).replace(".", ",")} km`
+                  : heroSession?.distance || "—"}
+              </Text>
+            </View>
+            <View style={styles.heroMetricDivider} />
+            <View style={styles.heroMetricItem}>
+              <Text style={styles.heroMetricLabel}>DURÉE</Text>
+              <Text style={styles.heroMetricValue}>
+                {isHeroDone && heroSession?.actualDurationSec
+                  ? formatDurationSec(heroSession.actualDurationSec)
+                  : heroSession?.duration || "—"}
+              </Text>
+            </View>
+            <View style={styles.heroMetricDivider} />
+            <View style={styles.heroMetricItem}>
+              <Text style={styles.heroMetricLabel}>
+                {isHeroDone ? "ALLURE" : "ALLURE CIBLE"}
+              </Text>
+              <Text style={styles.heroMetricValue}>
+                {isHeroDone && heroSession?.actualPace
+                  ? heroSession.actualPace
+                  : heroSession?.targetPace || "—"}
+              </Text>
+            </View>
+          </View>
+        )}
 
-        {/* White CTA: Bouton général vers le Coach */}
+        {/* Zone Cardio Pill (épuré, sans surcharge de pastilles) */}
+        {!isHeroRest && (heroSession?.targetZoneLabel || heroSession?.category) && (
+          <View style={styles.heroZoneBadge}>
+            <Text style={styles.heroZoneBadgeText}>
+              {heroSession?.targetZoneLabel || heroSession?.category}
+              {heroSession?.targetZoneBpm ? ` • ${heroSession.targetZoneBpm}` : ""}
+            </Text>
+          </View>
+        )}
+
+        {/* Bouton direct vers le Coach */}
         <TouchableOpacity
           style={styles.heroWhiteBtn}
           activeOpacity={0.9}
-          onPress={() => router.push("/chat" as any)}
+          onPress={() =>
+            router.push({
+              pathname: "/chat",
+              params: {
+                from: "home",
+                dateKey: todayDateKey,
+                workoutTitle:
+                  heroSession?.title ||
+                  (isHeroRest ? "Jour de repos" : undefined),
+              },
+            } as any)
+          }
         >
           <View style={styles.heroWhiteBtnContent}>
             <Ionicons
@@ -296,9 +408,7 @@ export default function HomeScreen() {
               size={20}
               color={Colors.primary}
             />
-            <Text style={styles.heroWhiteBtnText}>
-              J'ai un problème / J'en parle au coach
-            </Text>
+            <Text style={styles.heroWhiteBtnText}>Parler au coach</Text>
           </View>
           <Feather name="chevron-right" size={20} color={Colors.primary} />
         </TouchableOpacity>
@@ -408,7 +518,7 @@ export default function HomeScreen() {
 
           <Text style={styles.readinessInsightText}>
             {isHeroRest
-              ? "Jour de récupération sanctuarisé. Tes muscles et articulations se régénèrent pour aborder tes prochaines séances avec un maximum de fraîcheur."
+              ? "Jour de récupération. Tes muscles et articulations se régénèrent pour aborder tes prochaines séances avec un maximum de fraîcheur."
               : isHeroDone
                 ? "Séance du jour validée ! Tes données Strava sont intégrées à ta charge Banister pour recalibrer ton niveau de forme."
                 : `Score de fraîcheur à ${user?.readinessScore || 88}%. Tes indicateurs physiologiques sont au vert pour réaliser ta séance d'aujourd'hui.`}
@@ -515,7 +625,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.md,
   },
   headerLeft: {
     flexDirection: "row",
@@ -551,41 +661,61 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: Colors.textPrimary,
   },
-  readinessWrapper: {
-    alignItems: "flex-end",
-  },
-  readinessBadge: {
-    flexDirection: "row",
-    alignItems: "center",
+
+  // 2. Micro-progression hebdo
+  weekProgressStrip: {
     backgroundColor: Colors.card,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    marginBottom: Spacing.lg,
     borderWidth: 1,
     borderColor: Colors.border,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: BorderRadius.full,
-    gap: 6,
     ...Shadows.subtle,
   },
-  readinessPercent: {
-    fontSize: Typography.sizes.sm,
+  weekProgressInfoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  weekProgressLabelLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  weekProgressLabel: {
+    fontSize: Typography.sizes.xs,
     fontWeight: "700",
-    color: Colors.textPrimary,
-  },
-  greenDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: Colors.success,
-  },
-  readinessCaption: {
-    fontSize: 10,
     color: Colors.textSecondary,
-    fontWeight: "700",
-    letterSpacing: 0.8,
-    marginTop: 4,
+    letterSpacing: 0.5,
+  },
+  weekProgressKmText: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: "600",
+  },
+  weekProgressDoneText: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: "800",
+    color: Colors.primary,
+  },
+  weekProgressTargetText: {
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  weekProgressBarBg: {
+    height: 5,
+    backgroundColor: Colors.background,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  weekProgressBarFill: {
+    height: "100%",
+    backgroundColor: Colors.primary,
+    borderRadius: 3,
   },
 
-  // 2. Hero Card
+  // 3. Hero Card
   heroCard: {
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.xxl,
@@ -638,16 +768,67 @@ const styles = StyleSheet.create({
     lineHeight: 34,
     fontWeight: "800",
     color: Colors.textWhite,
+    marginBottom: Spacing.md,
+  },
+  heroMetricsCartouche: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: BorderRadius.lg,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: Spacing.md,
+  },
+  heroMetricItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  heroMetricLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "rgba(255, 255, 255, 0.8)",
+    letterSpacing: 0.6,
+    marginBottom: 3,
+  },
+  heroMetricValue: {
+    fontSize: Typography.sizes.md,
+    fontWeight: "800",
+    color: Colors.textWhite,
+  },
+  heroMetricDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+  },
+  heroZoneBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
     marginBottom: Spacing.lg,
   },
-  heroTagsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.sm,
-    marginBottom: Spacing.xl,
+  heroZoneBadgeText: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: "700",
+    color: Colors.textWhite,
   },
-  heroTagItem: {
-    marginRight: 0,
+  heroRestBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: BorderRadius.lg,
+    padding: 12,
+    marginBottom: Spacing.lg,
+  },
+  heroRestText: {
+    flex: 1,
+    fontSize: Typography.sizes.xs,
+    lineHeight: 18,
+    color: "rgba(255, 255, 255, 0.95)",
+    fontWeight: "500",
   },
   heroWhiteBtn: {
     backgroundColor: Colors.card,

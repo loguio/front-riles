@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -54,6 +55,14 @@ export default function CalendarScreen() {
   const [isMonthExpanded, setIsMonthExpanded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [isChangingWeek, setIsChangingWeek] = useState(false);
+  const [showGlossaryModal, setShowGlossaryModal] = useState(false);
+  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(
+    null,
+  );
+
+  useEffect(() => {
+    setSelectedActivityId(null);
+  }, [selectedDateKey]);
 
   const today = new Date();
   const currentYear = today.getFullYear();
@@ -95,11 +104,249 @@ export default function CalendarScreen() {
   const monthGridData = getMonthGrid(activeYear, activeMonth);
 
   const currentSession = selectedWorkout;
-  const isDoneSession = currentSession?.status === "done";
   const selectedDayMeta = weekCalendarDays.find(
     (d) =>
       d.dateKey === selectedDateKey ||
       (d.dayNumber === selectedDay && d.month === activeMonth),
+  );
+
+  // Détection des activités hors prépa (vélotaf / Déplacement - Transport / Randonnée / Marche)
+  const checkIsCommute = (actOrWorkout: any): boolean => {
+    if (!actOrWorkout) return false;
+    if (actOrWorkout.isCommute === true) return true;
+    const cat = String(actOrWorkout.category || "").toLowerCase();
+    const title = String(actOrWorkout.title || "").toLowerCase();
+    const sport = String(actOrWorkout.sportType || "").toLowerCase();
+    return (
+      sport.includes("hike") ||
+      sport.includes("walk") ||
+      sport.includes("ebike") ||
+      cat.includes("déplacement") ||
+      cat.includes("deplacement") ||
+      cat.includes("transport") ||
+      cat.includes("vélotaf") ||
+      cat.includes("velotaf") ||
+      cat.includes("rando") ||
+      cat.includes("marche") ||
+      title.includes("déplacement") ||
+      title.includes("deplacement") ||
+      title.includes("transport") ||
+      title.includes("vélotaf") ||
+      title.includes("velotaf") ||
+      title.includes("trajet") ||
+      title.includes("boulot") ||
+      title.includes("travail") ||
+      title.includes("aller-retour") ||
+      title.includes("rando") ||
+      title.includes("randonnée") ||
+      title.includes("randonnee") ||
+      title.includes("balade") ||
+      title.includes("marche") ||
+      title.includes("promenade") ||
+      title.includes("cascade") ||
+      title.includes("gorge")
+    );
+  };
+
+  // Calcul du bilan kilométrique de la semaine active (Course à pied uniquement)
+  const isRunningSession = (w?: any): boolean => {
+    if (!w || w.isRestDay) return false;
+    if (checkIsCommute(w)) return false;
+    const cat = (w.category || "").toLowerCase();
+    const title = (w.title || "").toLowerCase();
+    if (
+      cat.includes("vélo") ||
+      cat.includes("cycl") ||
+      title.includes("ride") ||
+      title.includes("vélo")
+    ) {
+      return false;
+    }
+    if (w.sportType) return w.sportType === "running";
+    return true;
+  };
+
+  const activeWeekWorkouts = weekCalendarDays.map(
+    (d) =>
+      monthWorkouts?.[d.dateKey] ||
+      workouts.find((w) => w.dateKey === d.dateKey),
+  );
+
+  const activeWeekDoneKm = activeWeekWorkouts.reduce((sum: number, w: any) => {
+    let dayKm = isRunningSession(w) ? (w?.actualDistanceKm || 0) : 0;
+    if (Array.isArray(w?.secondaryActivities)) {
+      for (const sec of w.secondaryActivities) {
+        if (sec.sportType === "running" && !checkIsCommute(sec)) {
+          dayKm += sec.distanceKm || 0;
+        }
+      }
+    }
+    return sum + dayKm;
+  }, 0);
+  const activeWeekPlannedKm = activeWeekWorkouts.reduce((sum: number, w: any) => {
+    if (isRunningSession(w) && w?.distance) {
+      const parsed = parseFloat(
+        w.distance.replace(",", ".").replace(/[^0-9.]/g, ""),
+      );
+      return sum + (isNaN(parsed) ? 0 : parsed);
+    }
+    return sum;
+  }, 0);
+
+  const isPastWeek =
+    activeYear < currentYear ||
+    (activeYear === currentYear && activeWeek < currentWeek);
+
+  // Normalisation de toutes les activités de la journée sélectionnée (principale + secondaires)
+  const primaryIsRide = Boolean(
+    currentSession?.sportType === "cycling" ||
+      currentSession?.category?.toLowerCase().includes("vélo") ||
+      currentSession?.category?.toLowerCase().includes("vélotaf") ||
+      currentSession?.title?.toLowerCase().includes("ride") ||
+      currentSession?.title?.toLowerCase().includes("vélo"),
+  );
+
+  const primaryActivity = currentSession
+    ? {
+        id: currentSession.id || "primary",
+        dateKey: currentSession.dateKey,
+        title: currentSession.title,
+        category: currentSession.category,
+        sportType:
+          currentSession.sportType || (primaryIsRide ? "cycling" : "running"),
+        isCommute: checkIsCommute(currentSession),
+        distanceKm:
+          currentSession.actualDistanceKm ??
+          (parseFloat(
+            currentSession.distance
+              ?.replace(",", ".")
+              .replace(/[^0-9.]/g, "") || "0",
+          ) ||
+            0),
+        durationSec: currentSession.actualDurationSec || 0,
+        durationLabel:
+          currentSession.actualDurationSec &&
+          currentSession.actualDurationSec > 0
+            ? formatDurationSec(
+                currentSession.actualDurationSec,
+                currentSession.duration,
+              )
+            : currentSession.duration,
+        distanceLabel:
+          currentSession.status === "done" &&
+          currentSession.actualDistanceKm !== undefined
+            ? `${currentSession.actualDistanceKm.toFixed(1).replace(".", ",")} km`
+            : currentSession.distance,
+        paceOrSpeedLabel:
+          currentSession.actualPace ||
+          (primaryIsRide ? "Allure libre" : currentSession.targetPace) ||
+          "—",
+        actualAvgHeartRate: currentSession.actualAvgHeartRate,
+        actualMaxHeartRate: currentSession.actualMaxHeartRate,
+        actualElevationGain: currentSession.actualElevationGain,
+        actualCalories: currentSession.actualCalories,
+        actualCadence: currentSession.actualCadence,
+        tss: currentSession.tss,
+        sourceProvider: currentSession.sourceProvider,
+        status: currentSession.status,
+        isRestDay: currentSession.isRestDay,
+        isPrimary: true,
+        effortBlocks: currentSession.effortBlocks,
+        targetZoneLabel: currentSession.targetZoneLabel,
+        targetZoneBpm: currentSession.targetZoneBpm,
+        pinPositionPercent: currentSession.pinPositionPercent,
+        targetZoneSegments: currentSession.targetZoneSegments,
+        aiAdjustmentNote: currentSession.aiAdjustmentNote,
+      }
+    : null;
+
+  const secondaryActivitiesList = (
+    currentSession?.secondaryActivities || []
+  ).map((sec, idx) => {
+    const isSecCommute = checkIsCommute(sec);
+    const isSecRide =
+      sec.sportType === "cycling" ||
+      sec.title?.toLowerCase().includes("ride") ||
+      sec.title?.toLowerCase().includes("vélo");
+    return {
+      id: sec.id || `sec-${idx}`,
+      dateKey: currentSession?.dateKey,
+      title: sec.title,
+      category:
+        sec.category ||
+        (isSecCommute
+          ? "DÉPLACEMENT - TRANSPORT"
+          : isSecRide
+            ? "SORTIE VÉLO STRAVA"
+            : "SÉANCE STRAVA"),
+      sportType: sec.sportType || (isSecRide ? "cycling" : "running"),
+      isCommute: isSecCommute,
+      distanceKm: sec.distanceKm || 0,
+      durationSec: sec.durationSec || 0,
+      durationLabel: sec.durationLabel || formatDurationSec(sec.durationSec),
+      distanceLabel:
+        sec.distanceKm > 0
+          ? `${sec.distanceKm.toFixed(1).replace(".", ",")} km`
+          : "—",
+      paceOrSpeedLabel:
+        sec.paceOrSpeedLabel || (isSecRide ? "Allure libre" : "—"),
+      actualAvgHeartRate: sec.actualAvgHeartRate,
+      actualMaxHeartRate: sec.actualMaxHeartRate,
+      actualElevationGain: sec.actualElevationGain,
+      actualCalories: sec.actualCalories,
+      actualCadence: sec.actualCadence,
+      tss: sec.tss,
+      sourceProvider: "strava",
+      status: "done" as const,
+      isRestDay: false,
+      isPrimary: false,
+      effortBlocks: undefined,
+      targetZoneLabel: undefined,
+      targetZoneBpm: undefined,
+      pinPositionPercent: undefined,
+      targetZoneSegments: undefined,
+      aiAdjustmentNote: isSecCommute
+        ? undefined
+        : `Deuxième séance synchronisée depuis Strava (${sec.distanceKm ? `${sec.distanceKm.toFixed(1).replace(".", ",")} km` : ""})${sec.actualAvgHeartRate ? ` • ${sec.actualAvgHeartRate} bpm moy` : ""}${sec.tss ? ` • Charge : ${sec.tss} TSS` : ""}.`,
+    };
+  });
+
+  const allDayActivities = primaryActivity
+    ? [primaryActivity, ...secondaryActivitiesList]
+    : [];
+
+  const realPrepActivities = allDayActivities.filter((a) => !a.isCommute);
+  const isOnlyNonPrepDay =
+    allDayActivities.length > 0 && realPrepActivities.length === 0;
+
+  const defaultActivity =
+    realPrepActivities.length > 0
+      ? realPrepActivities[0]
+      : allDayActivities[0] || null;
+
+  const activeDisplayActivity =
+    (selectedActivityId &&
+      allDayActivities.find((a) => a.id === selectedActivityId)) ||
+    defaultActivity;
+
+  const remainingActivities = allDayActivities.filter(
+    (a) => a.id !== activeDisplayActivity?.id,
+  );
+
+  const isCycling = Boolean(
+    activeDisplayActivity?.sportType === "cycling" ||
+      activeDisplayActivity?.category?.toLowerCase().includes("vélo") ||
+      activeDisplayActivity?.category?.toLowerCase().includes("vélotaf") ||
+      activeDisplayActivity?.category?.toLowerCase().includes("cycl") ||
+      activeDisplayActivity?.title?.toLowerCase().includes("ride") ||
+      activeDisplayActivity?.title?.toLowerCase().includes("vélo"),
+  );
+
+  const isDoneSession = activeDisplayActivity?.status === "done";
+  const hasPlannedTargets = Boolean(
+    !isCycling &&
+      activeDisplayActivity?.sourceProvider !== "strava" &&
+      activeDisplayActivity?.status !== "done",
   );
 
   const onRefresh = async () => {
@@ -188,13 +435,24 @@ export default function CalendarScreen() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.avatar}
-          onPress={() => router.push("/(tabs)/profile")}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.avatarText}>{user?.initials || "ML"}</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRightActions}>
+          <TouchableOpacity
+            style={styles.infoGlossaryBtn}
+            onPress={() => setShowGlossaryModal(true)}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Feather name="info" size={19} color={Colors.primary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.avatar}
+            onPress={() => router.push("/(tabs)/profile")}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.avatarText}>{user?.initials || "ML"}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* 2. Calendar Card (Week strip & expandable Month grid) */}
@@ -203,6 +461,20 @@ export default function CalendarScreen() {
         <View style={styles.calendarHeaderRow}>
           <View style={styles.weekTitleRow}>
             <Text style={styles.weekLabel}>Semaine {activeWeek}</Text>
+
+            {/* Bilan kilométrique épuré de la semaine */}
+            <View style={styles.weekMileageBadge}>
+              <MaterialCommunityIcons
+                name="run-fast"
+                size={13}
+                color={Colors.primary}
+              />
+              <Text style={styles.weekMileageText}>
+                {isPastWeek || activeWeekPlannedKm <= 0
+                  ? `${activeWeekDoneKm.toFixed(1).replace(".", ",")} km`
+                  : `${activeWeekDoneKm.toFixed(1).replace(".", ",")} / ${activeWeekPlannedKm.toFixed(0)} km`}
+              </Text>
+            </View>
             {!isViewingToday && (
               <TouchableOpacity
                 style={styles.todayPillBtn}
@@ -257,9 +529,19 @@ export default function CalendarScreen() {
               (selectedDay === item.dayNumber && item.month === activeMonth);
 
             const session = workouts.find((w) => w.dateKey === item.dateKey);
-            const isDone = session?.status === "done";
+            const isCommuteOnly = Boolean(
+              session &&
+                checkIsCommute(session) &&
+                (!session.secondaryActivities ||
+                  session.secondaryActivities.every((s: any) =>
+                    checkIsCommute(s),
+                  )),
+            );
+            const isDone = session?.status === "done" && !isCommuteOnly;
             const isRest = session?.isRestDay || session?.status === "rest";
-            const hasUpcomingWorkout = Boolean(session && !isDone && !isRest);
+            const hasUpcomingWorkout = Boolean(
+              session && !isDone && !isRest && !isCommuteOnly,
+            );
 
             return (
               <TouchableOpacity
@@ -360,9 +642,20 @@ export default function CalendarScreen() {
               {monthGridData.days.map((cell) => {
                 const isSelected = selectedDateKey === cell.dateKey;
                 const session = monthWorkouts[cell.dateKey];
-                const isDone = session?.status === "done";
+                const isCommuteOnly = Boolean(
+                  session &&
+                    checkIsCommute(session) &&
+                    (!session.secondaryActivities ||
+                      session.secondaryActivities.every((s: any) =>
+                        checkIsCommute(s),
+                      )),
+                );
+                const isDone = session?.status === "done" && !isCommuteOnly;
                 const isUpcoming =
-                  session && !session.isRestDay && session.status !== "done";
+                  session &&
+                  !session.isRestDay &&
+                  session.status !== "done" &&
+                  !isCommuteOnly;
 
                 return (
                   <TouchableOpacity
@@ -446,7 +739,9 @@ export default function CalendarScreen() {
             `JOUR ${selectedDay}`}
         </Text>
         <View style={styles.sessionStatusRow}>
-          <Text style={styles.sessionSectionTitle}>Séance au programme</Text>
+          <Text style={styles.sessionSectionTitle}>
+            {isOnlyNonPrepDay ? "Activités du jour" : "Séance au programme"}
+          </Text>
           <View style={styles.upcomingBadgePill}>
             {!currentSession ? (
               <>
@@ -458,7 +753,21 @@ export default function CalendarScreen() {
                 />
                 <Text style={styles.upcomingBadgeText}>Rien de prévu</Text>
               </>
-            ) : currentSession.status === "done" ? (
+            ) : isOnlyNonPrepDay ? (
+              <>
+                <View
+                  style={[styles.statusDot, { backgroundColor: "#94A3B8" }]}
+                />
+                <Text
+                  style={[
+                    styles.upcomingBadgeText,
+                    { color: Colors.textSecondary },
+                  ]}
+                >
+                  Hors prépa
+                </Text>
+              </>
+            ) : activeDisplayActivity?.status === "done" ? (
               <>
                 <View
                   style={[
@@ -475,7 +784,7 @@ export default function CalendarScreen() {
                   Réalisée
                 </Text>
               </>
-            ) : currentSession.isRestDay ? (
+            ) : activeDisplayActivity?.isRestDay ? (
               <>
                 <View
                   style={[
@@ -495,7 +804,7 @@ export default function CalendarScreen() {
         </View>
       </View>
 
-      {/* 4. Session Detail Card (ou état vide si aucune séance n'est prévue pour cette date) */}
+      {/* 4. Session Detail Card */}
       {!currentSession ? (
         <Card style={styles.sessionCard}>
           <View style={styles.sessionTopRow}>
@@ -518,27 +827,156 @@ export default function CalendarScreen() {
             Il n'y a aucune séance programmée à cette date pour l'instant.
           </Text>
         </Card>
-      ) : (
-        <Card style={styles.sessionCard}>
-          {/* Top category & title */}
-          <View style={styles.sessionTopRow}>
-            <View style={styles.sessionIconBox}>
-              <MaterialCommunityIcons
-                name={currentSession.isRestDay ? "sleep" : "heart-pulse"}
-                size={24}
-                color={Colors.primary}
-              />
-            </View>
-            <View style={styles.sessionCategoryBox}>
-              <Text style={styles.sessionCategoryText}>
-                {currentSession.category}
-              </Text>
-              <Text style={styles.sessionTitle}>{currentSession.title}</Text>
-            </View>
+      ) : isOnlyNonPrepDay ? (
+        /* CAS A : Journée avec uniquement des activités hors prépa (vélotaf, rando) -> Toutes affichées ensemble en petits bandeaux sans temps ni BPM */
+        <Card style={styles.compactNonPrepCard}>
+          <View style={styles.compactNonPrepHeader}>
+            <Ionicons
+              name="layers-outline"
+              size={14}
+              color={Colors.textSecondary}
+            />
+            <Text style={styles.compactNonPrepHeaderText}>
+              AUTRES ACTIVITÉS DU JOUR ({allDayActivities.length})
+            </Text>
           </View>
 
-          {/* 3 Metrics Row: affiche les vraies données exécutées si la séance est passée (done), sinon les cibles prévues */}
-          {!currentSession.isRestDay && (
+          <View style={styles.compactNonPrepList}>
+            {allDayActivities.map((act) => {
+              const isRide =
+                act.sportType === "cycling" ||
+                act.title?.toLowerCase().includes("ride") ||
+                act.title?.toLowerCase().includes("vélo");
+              const isHike =
+                act.sportType?.toLowerCase().includes("hike") ||
+                act.title?.toLowerCase().includes("rando");
+
+              return (
+                <View key={act.id} style={styles.compactActivityRow}>
+                  <View style={styles.compactActivityIconBox}>
+                    <MaterialCommunityIcons
+                      name={isRide ? "bicycle" : isHike ? "hiking" : "walk"}
+                      size={18}
+                      color={Colors.textSecondary}
+                    />
+                  </View>
+                  <Text style={styles.compactActivityTitle} numberOfLines={1}>
+                    {act.title}
+                  </Text>
+                  {act.distanceKm > 0 && (
+                    <Text style={styles.compactActivityDistance}>
+                      {act.distanceKm.toFixed(1).replace(".", ",")} km
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        </Card>
+      ) : (
+        /* CAS B : Carte normale athlétique (Course à pied ou vraie séance vélo / sport d'entraînement) */
+        <Card style={styles.sessionCard}>
+          {/* Si on affiche une seconde séance permutée */}
+          {activeDisplayActivity &&
+            realPrepActivities.length > 1 &&
+            activeDisplayActivity.id !== realPrepActivities[0]?.id && (
+              <View style={styles.activeSecondaryNoticeRow}>
+                <View style={styles.swappedBadge}>
+                  <Feather name="layers" size={13} color={Colors.primary} />
+                  <Text style={styles.swappedBadgeText}>
+                    DEUXIÈME SÉANCE DU JOUR
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.resetPrimaryBtn}
+                  onPress={() =>
+                    setSelectedActivityId(realPrepActivities[0]?.id || null)
+                  }
+                >
+                  <Text style={styles.resetPrimaryBtnText}>
+                    Revenir à la 1re
+                  </Text>
+                  <Feather
+                    name="rotate-ccw"
+                    size={12}
+                    color={Colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
+
+          {/* Top category & title */}
+          {activeDisplayActivity?.isRestDay ? (
+            <View style={styles.restDayContainer}>
+              <View style={styles.restDayHeaderRow}>
+                <View style={styles.restIconCircle}>
+                  <Ionicons
+                    name="moon-outline"
+                    size={22}
+                    color={Colors.primary}
+                  />
+                </View>
+                <View style={styles.restHeaderTextCol}>
+                  <Text style={styles.restCategory}>
+                    RÉCUPÉRATION & ASSIMILATION
+                  </Text>
+                  <Text style={styles.restTitle}>Jour de repos</Text>
+                </View>
+              </View>
+
+              <Text style={styles.restPraiseText}>
+                Bravo pour tes efforts ! Le repos fait partie intégrante de ton
+                entraînement : c'est aujourd'hui que tes fibres musculaires
+                s'adaptent et que ton corps recharge ses réserves d'énergie.
+              </Text>
+
+              <View style={styles.restPillarsGrid}>
+                <View style={styles.restPillarCard}>
+                  <Text style={styles.restPillarEmoji}>💧</Text>
+                  <Text style={styles.restPillarTitle}>Hydratation</Text>
+                  <Text style={styles.restPillarDesc}>
+                    2L d'eau pour éliminer les toxines et drainer les fibres.
+                  </Text>
+                </View>
+                <View style={styles.restPillarCard}>
+                  <Text style={styles.restPillarEmoji}>🧘</Text>
+                  <Text style={styles.restPillarTitle}>Mobilité douce</Text>
+                  <Text style={styles.restPillarDesc}>
+                    10–15 min d'étirements légers ou marche tranquille.
+                  </Text>
+                </View>
+                <View style={styles.restPillarCard}>
+                  <Text style={styles.restPillarEmoji}>🌙</Text>
+                  <Text style={styles.restPillarTitle}>Sommeil</Text>
+                  <Text style={styles.restPillarDesc}>
+                    Vise 8h de sommeil de qualité pour régénérer le système
+                    nerveux.
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.sessionTopRow}>
+              <View style={styles.sessionIconBox}>
+                <MaterialCommunityIcons
+                  name={isCycling ? "bike" : "heart-pulse"}
+                  size={24}
+                  color={Colors.primary}
+                />
+              </View>
+              <View style={styles.sessionCategoryBox}>
+                <Text style={styles.sessionCategoryText}>
+                  {activeDisplayActivity?.category}
+                </Text>
+                <Text style={styles.sessionTitle}>
+                  {activeDisplayActivity?.title}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* 3 Metrics Row: adapté au sport */}
+          {!activeDisplayActivity?.isRestDay && (
             <View style={styles.metricsRow}>
               <View style={styles.metricItem}>
                 <Feather
@@ -547,44 +985,35 @@ export default function CalendarScreen() {
                   color={isDoneSession ? Colors.success : Colors.textSecondary}
                 />
                 <Text style={styles.metricValue}>
-                  {isDoneSession && currentSession.actualDurationSec
-                    ? formatDurationSec(
-                        currentSession.actualDurationSec,
-                        currentSession.duration,
-                      )
-                    : currentSession.duration}
+                  {activeDisplayActivity?.durationLabel}
                 </Text>
               </View>
               <View style={styles.metricItem}>
                 <MaterialCommunityIcons
-                  name="run"
+                  name={isCycling ? "bike" : "run"}
                   size={20}
                   color={isDoneSession ? Colors.success : Colors.textSecondary}
                 />
                 <Text style={styles.metricValue}>
-                  {isDoneSession &&
-                  currentSession.actualDistanceKm !== undefined
-                    ? `${currentSession.actualDistanceKm.toFixed(1).replace(".", ",")} km`
-                    : currentSession.distance}
+                  {activeDisplayActivity?.distanceLabel}
                 </Text>
               </View>
               <View style={styles.metricItem}>
                 <Feather
-                  name="trending-up"
+                  name={isCycling ? "activity" : "trending-up"}
                   size={18}
                   color={isDoneSession ? Colors.success : Colors.textSecondary}
                 />
                 <Text style={styles.metricValue}>
-                  {isDoneSession && currentSession.actualPace
-                    ? currentSession.actualPace
-                    : currentSession.targetPace}
+                  {activeDisplayActivity?.paceOrSpeedLabel ||
+                    (isCycling ? "Allure libre" : "—")}
                 </Text>
               </View>
             </View>
           )}
 
           {/* Encart complet des données réelles de la séance passée (Strava / Garmin / Apple Santé) */}
-          {isDoneSession && !currentSession.isRestDay && (
+          {isDoneSession && !activeDisplayActivity?.isRestDay && (
             <View style={styles.realSessionBox}>
               <View style={styles.realSessionHeaderRow}>
                 <View style={styles.realSessionTitleRow}>
@@ -597,12 +1026,12 @@ export default function CalendarScreen() {
                     DONNÉES RÉELLES DE LA SÉANCE
                   </Text>
                 </View>
-                {currentSession.sourceProvider && (
+                {activeDisplayActivity?.sourceProvider && (
                   <View style={styles.sourceProviderBadge}>
                     <Text style={styles.sourceProviderText}>
-                      {currentSession.sourceProvider === "strava"
+                      {activeDisplayActivity.sourceProvider === "strava"
                         ? "STRAVA"
-                        : currentSession.sourceProvider === "garmin"
+                        : activeDisplayActivity.sourceProvider === "garmin"
                           ? "GARMIN"
                           : "APPLE SANTÉ"}
                     </Text>
@@ -614,65 +1043,71 @@ export default function CalendarScreen() {
                 <View style={styles.realMetricCell}>
                   <Text style={styles.realMetricLabel}>Distance réelle</Text>
                   <Text style={styles.realMetricMain}>
-                    {currentSession.actualDistanceKm !== undefined
-                      ? `${currentSession.actualDistanceKm.toFixed(1).replace(".", ",")} km`
-                      : currentSession.distance || "—"}
+                    {activeDisplayActivity?.distanceLabel || "—"}
                   </Text>
-                  <Text style={styles.realMetricSub}>
-                    Prévu : {currentSession.distance || "—"}
-                  </Text>
+                  {hasPlannedTargets ? (
+                    <Text style={styles.realMetricSub}>
+                      Prévu : {currentSession?.distance || "—"}
+                    </Text>
+                  ) : null}
                 </View>
 
                 <View style={styles.realMetricCell}>
-                  <Text style={styles.realMetricLabel}>Allure réelle</Text>
+                  <Text style={styles.realMetricLabel}>
+                    {isCycling ? "Vitesse moyenne" : "Allure réelle"}
+                  </Text>
                   <Text style={styles.realMetricMain}>
-                    {currentSession.actualPace ||
-                      currentSession.targetPace ||
-                      "—"}
+                    {activeDisplayActivity?.paceOrSpeedLabel || "—"}
                   </Text>
-                  <Text style={styles.realMetricSub}>
-                    Cible : {currentSession.targetPace || "—"}
-                  </Text>
+                  {hasPlannedTargets ? (
+                    <Text style={styles.realMetricSub}>
+                      Cible : {currentSession?.targetPace || "—"}
+                    </Text>
+                  ) : null}
                 </View>
 
                 <View style={styles.realMetricCell}>
                   <Text style={styles.realMetricLabel}>Cardio mesuré</Text>
                   <Text style={styles.realMetricMain}>
-                    {currentSession.actualAvgHeartRate
-                      ? `${currentSession.actualAvgHeartRate} bpm`
+                    {activeDisplayActivity?.actualAvgHeartRate
+                      ? `${activeDisplayActivity.actualAvgHeartRate} bpm`
                       : "—"}
                   </Text>
                   <Text style={styles.realMetricSub}>
-                    {currentSession.actualMaxHeartRate
-                      ? `Max ${currentSession.actualMaxHeartRate} bpm`
-                      : currentSession.targetZoneBpm || ""}
+                    {activeDisplayActivity?.actualMaxHeartRate
+                      ? `Max ${activeDisplayActivity.actualMaxHeartRate} bpm`
+                      : hasPlannedTargets
+                        ? currentSession?.targetZoneBpm || ""
+                        : ""}
                   </Text>
                 </View>
               </View>
 
-              {(currentSession.actualElevationGain !== undefined ||
-                currentSession.actualCadence !== undefined ||
-                currentSession.actualCalories !== undefined ||
-                currentSession.tss !== undefined) && (
+              {(activeDisplayActivity?.actualElevationGain !== undefined ||
+                activeDisplayActivity?.actualCadence !== undefined ||
+                activeDisplayActivity?.actualCalories !== undefined ||
+                activeDisplayActivity?.tss !== undefined) && (
                 <View style={styles.realSecondaryRow}>
-                  {currentSession.actualElevationGain !== undefined && (
+                  {activeDisplayActivity.actualElevationGain !==
+                    undefined && (
                     <Text style={styles.realSecondaryTag}>
-                      ⛰️ +{currentSession.actualElevationGain} m D+
+                      ⛰️ +{activeDisplayActivity.actualElevationGain} m D+
                     </Text>
                   )}
-                  {currentSession.actualCadence !== undefined && (
+                  {activeDisplayActivity.actualCadence !== undefined &&
+                    !isCycling && (
+                      <Text style={styles.realSecondaryTag}>
+                        👟 {activeDisplayActivity.actualCadence} spm
+                      </Text>
+                    )}
+                  {activeDisplayActivity.actualCalories !== undefined && (
                     <Text style={styles.realSecondaryTag}>
-                      👟 {currentSession.actualCadence} spm
+                      🔥 {activeDisplayActivity.actualCalories} kcal
                     </Text>
                   )}
-                  {currentSession.actualCalories !== undefined && (
+                  {activeDisplayActivity.tss !== undefined && (
                     <Text style={styles.realSecondaryTag}>
-                      🔥 {currentSession.actualCalories} kcal
-                    </Text>
-                  )}
-                  {currentSession.tss !== undefined && (
-                    <Text style={styles.realSecondaryTag}>
-                      ⚡ Charge : {currentSession.tss} TSS
+                      ⚡ Charge : {activeDisplayActivity.tss} TSS
                     </Text>
                   )}
                 </View>
@@ -680,52 +1115,180 @@ export default function CalendarScreen() {
             </View>
           )}
 
+          {/* Autres activités du jour (Vélotaf/rando en petit bandeau simple, ou 2e vraie séance cliquable) */}
+          {remainingActivities.length > 0 && (
+            <View style={styles.secondaryActivitiesBox}>
+              <View style={styles.secondaryActivitiesHeaderRow}>
+                <Ionicons
+                  name="layers-outline"
+                  size={14}
+                  color={Colors.textSecondary}
+                />
+                <Text style={styles.secondaryActivitiesHeaderTitle}>
+                  AUTRES ACTIVITÉS DU JOUR ({remainingActivities.length})
+                </Text>
+              </View>
+              {remainingActivities.map((act) => {
+                const isActCommute = act.isCommute;
+                const isActCycling =
+                  act.sportType === "cycling" ||
+                  act.title.toLowerCase().includes("ride") ||
+                  act.title.toLowerCase().includes("vélo");
+                const isActHike =
+                  act.sportType.toLowerCase().includes("hike") ||
+                  act.title.toLowerCase().includes("rando");
+
+                if (isActCommute) {
+                  return (
+                    <View key={act.id} style={styles.compactActivityRow}>
+                      <View style={styles.compactActivityIconBox}>
+                        <MaterialCommunityIcons
+                          name={
+                            isActCycling
+                              ? "bicycle"
+                              : isActHike
+                                ? "hiking"
+                                : "walk"
+                          }
+                          size={18}
+                          color={Colors.textSecondary}
+                        />
+                      </View>
+                      <Text
+                        style={styles.compactActivityTitle}
+                        numberOfLines={1}
+                      >
+                        {act.title}
+                      </Text>
+                      {act.distanceKm > 0 && (
+                        <Text style={styles.compactActivityDistance}>
+                          {act.distanceKm.toFixed(1).replace(".", ",")} km
+                        </Text>
+                      )}
+                    </View>
+                  );
+                }
+
+                return (
+                  <TouchableOpacity
+                    key={act.id}
+                    style={[
+                      styles.secondaryActivityRow,
+                      styles.secondaryActivityRowInteractive,
+                    ]}
+                    activeOpacity={0.75}
+                    onPress={() => setSelectedActivityId(act.id)}
+                  >
+                    <View
+                      style={[
+                        styles.secondaryActivityIconBox,
+                        styles.secondaryActivityIconBoxActive,
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name={isActCycling ? "bike" : "run"}
+                        size={18}
+                        color={Colors.primary}
+                      />
+                    </View>
+                    <View style={styles.secondaryActivityContent}>
+                      <View style={styles.secondaryActivityTitleRow}>
+                        <Text
+                          style={styles.secondaryActivityTitle}
+                          numberOfLines={1}
+                        >
+                          {act.title}
+                        </Text>
+                        <View style={styles.usefulSessionBadge}>
+                          <Text style={styles.usefulSessionBadgeText}>
+                            {act.isPrimary ? "Séance principale" : "2e séance"}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.secondaryActivityMeta}>
+                        {act.distanceKm > 0
+                          ? `${act.distanceKm.toFixed(1).replace(".", ",")} km • `
+                          : ""}
+                        {act.durationLabel}
+                        {act.paceOrSpeedLabel
+                          ? ` • ${act.paceOrSpeedLabel}`
+                          : ""}
+                      </Text>
+                    </View>
+                    <View style={styles.switchSessionActionBox}>
+                      <Text style={styles.switchSessionActionText}>
+                        Afficher
+                      </Text>
+                      <Feather
+                        name="arrow-up-right"
+                        size={14}
+                        color={Colors.primary}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
           <View style={styles.cardDivider} />
 
           {/* Effort Structure */}
-          {currentSession.effortBlocks && (
-            <EffortStructure blocks={currentSession.effortBlocks} />
-          )}
+          {!activeDisplayActivity?.isRestDay &&
+            activeDisplayActivity?.effortBlocks &&
+            activeDisplayActivity.effortBlocks.length > 0 && (
+              <EffortStructure blocks={activeDisplayActivity.effortBlocks} />
+            )}
 
-          <View style={styles.cardDivider} />
+          {!activeDisplayActivity?.isRestDay &&
+            activeDisplayActivity?.effortBlocks &&
+            activeDisplayActivity.effortBlocks.length > 0 && (
+              <View style={styles.cardDivider} />
+            )}
 
           {/* Target Heart Rate Zone */}
-          {!currentSession.isRestDay && (
-            <HeartRateZoneBar
-              label={currentSession.targetZoneLabel}
-              bpm={
-                isDoneSession && currentSession.actualAvgHeartRate
-                  ? `${currentSession.actualAvgHeartRate} bpm moy (cible ${currentSession.targetZoneBpm})`
-                  : currentSession.targetZoneBpm
-              }
-              pinPositionPercent={currentSession.pinPositionPercent}
-              segments={currentSession.targetZoneSegments}
-            />
-          )}
+          {!activeDisplayActivity?.isRestDay &&
+            activeDisplayActivity?.targetZoneSegments &&
+            activeDisplayActivity.targetZoneSegments.length > 0 && (
+              <HeartRateZoneBar
+                label={
+                  activeDisplayActivity.targetZoneLabel || "Zone Cardio"
+                }
+                bpm={
+                  isDoneSession && activeDisplayActivity.actualAvgHeartRate
+                    ? `${activeDisplayActivity.actualAvgHeartRate} bpm moy (cible ${activeDisplayActivity.targetZoneBpm})`
+                    : activeDisplayActivity.targetZoneBpm || ""
+                }
+                pinPositionPercent={
+                  activeDisplayActivity.pinPositionPercent || 50
+                }
+                segments={activeDisplayActivity.targetZoneSegments}
+              />
+            )}
 
           {/* Session Note */}
-          {currentSession.aiAdjustmentNote && (
+          {activeDisplayActivity?.aiAdjustmentNote && (
             <View style={styles.sessionAiNoteBox}>
               <Feather name="info" size={15} color={Colors.primary} />
               <Text style={styles.sessionAiNoteText}>
-                {currentSession.aiAdjustmentNote}
+                {activeDisplayActivity.aiAdjustmentNote}
               </Text>
             </View>
           )}
         </Card>
       )}
 
-      {/* 5. Coach Adapter Card (Recalcul dynamique simple via message au coach) */}
+      {/* 5. Coach Card (Accès direct & contextuel au coach) */}
       <Card variant="peach" style={styles.adaptCard}>
         <View style={styles.adaptHeaderRow}>
           <View style={styles.adaptIconCircle}>
             <Ionicons name="chatbubble" size={22} color={Colors.textWhite} />
           </View>
           <View style={styles.adaptHeaderTextCol}>
-            <Text style={styles.adaptTitle}>Un imprévu ou un problème ?</Text>
+            <Text style={styles.adaptTitle}>Échanger avec ton coach</Text>
             <Text style={styles.adaptSubtitle}>
-              Fatigue, manque de temps, gêne ou changement de planning : écris
-              un petit message au coach.
+              Une question sur une séance, un imprévu, une fatigue ou envie
+              d'adapter ton plan : parle directement à ton coach.
             </Text>
           </View>
         </View>
@@ -733,23 +1296,137 @@ export default function CalendarScreen() {
         <TouchableOpacity
           style={styles.adaptButton}
           activeOpacity={0.88}
-          onPress={() => router.push("/chat" as any)}
+          onPress={() =>
+            router.push({
+              pathname: "/chat",
+              params: {
+                from: "calendar",
+                dateKey:
+                  activeDisplayActivity?.dateKey ||
+                  currentSession?.dateKey ||
+                  selectedDateKey,
+                workoutTitle:
+                  activeDisplayActivity?.title ||
+                  currentSession?.title ||
+                  (activeDisplayActivity?.isRestDay
+                    ? "Jour de repos"
+                    : undefined),
+              },
+            } as any)
+          }
         >
           <Ionicons
             name="chatbubble-ellipses-outline"
             size={20}
             color={Colors.textWhite}
           />
-          <Text style={styles.adaptButtonText}>
-            J'ai un problème / J'en parle au coach
-          </Text>
+          <Text style={styles.adaptButtonText}>Parler au coach</Text>
         </TouchableOpacity>
 
         <Text style={styles.adaptFooterCaption}>
-          Le coach recalcule automatiquement ta séance et rééquilibre ta
-          semaine complète.
+          Le coach analyse ton contexte et rééquilibre ton entraînement à la
+          demande.
         </Text>
       </Card>
+
+      {/* 6. Modal Lexique & Métriques Sportives (TSS, SPM, Z2, Seuil, Allure) */}
+      <Modal
+        visible={showGlossaryModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowGlossaryModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleRow}>
+                <MaterialCommunityIcons
+                  name="book-open-variant"
+                  size={20}
+                  color={Colors.primary}
+                />
+                <Text style={styles.modalTitle}>Lexique & Métriques Sportives</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowGlossaryModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={24} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.modalScroll}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* TSS */}
+              <View style={styles.glossaryItem}>
+                <View style={styles.glossaryBadge}>
+                  <Text style={styles.glossaryBadgeText}>TSS</Text>
+                </View>
+                <Text style={styles.glossaryTermTitle}>
+                  Training Stress Score (Charge d'effort)
+                </Text>
+                <Text style={styles.glossaryDefinition}>
+                  Indicateur qui mesure la fatigue et l'impact réel d'une séance sur ton organisme, en combinant la durée et l'intensité cardio. Plus le score est élevé, plus ton corps a besoin de récupérer (ex: footing cool = 30-40 TSS, séance intense ou sortie longue = 80-120+ TSS).
+                </Text>
+              </View>
+
+              {/* SPM */}
+              <View style={styles.glossaryItem}>
+                <View style={styles.glossaryBadge}>
+                  <Text style={styles.glossaryBadgeText}>SPM</Text>
+                </View>
+                <Text style={styles.glossaryTermTitle}>
+                  Cadence (Pas par minute)
+                </Text>
+                <Text style={styles.glossaryDefinition}>
+                  La fréquence de tes foulées en course à pied. Une cadence fluide se situe généralement entre 165 et 180 pas par minute. Une bonne cadence protège les articulations et réduit l'impact au sol.
+                </Text>
+              </View>
+
+              {/* Z2 */}
+              <View style={styles.glossaryItem}>
+                <View style={styles.glossaryBadge}>
+                  <Text style={styles.glossaryBadgeText}>Z2</Text>
+                </View>
+                <Text style={styles.glossaryTermTitle}>
+                  Endurance Fondamentale
+                </Text>
+                <Text style={styles.glossaryDefinition}>
+                  L'allure reine de 80% de ton volume d'entraînement. C'est une intensité où tu peux respirer facilement et discuter sans être essoufflé. Elle apprend à ton corps à brûler les graisses et fortifie ton cœur sans fatigue toxique.
+                </Text>
+              </View>
+
+              {/* SEUIL */}
+              <View style={styles.glossaryItem}>
+                <View style={styles.glossaryBadge}>
+                  <Text style={styles.glossaryBadgeText}>Seuil</Text>
+                </View>
+                <Text style={styles.glossaryTermTitle}>
+                  Zones 3–4 (Seuil Lactique)
+                </Text>
+                <Text style={styles.glossaryDefinition}>
+                  L'allure de course "vite mais maîtrisée". C'est l'intensité limite à laquelle tes muscles produisent du lactate à la même vitesse que ton corps peut l'éliminer. Travailler à cette allure recule le mur de fatigue et améliore ta vitesse de croisière.
+                </Text>
+              </View>
+
+              {/* ALLURE */}
+              <View style={styles.glossaryItem}>
+                <View style={styles.glossaryBadge}>
+                  <Text style={styles.glossaryBadgeText}>Allure</Text>
+                </View>
+                <Text style={styles.glossaryTermTitle}>
+                  Allure min/km
+                </Text>
+                <Text style={styles.glossaryDefinition}>
+                  Le temps en minutes et secondes nécessaire pour parcourir un kilomètre. Contrairement à la vitesse en km/h, l'allure permet de réguler avec précision son effort (ex: 5:00/km correspond à 12,0 km/h, 4:30/km à 13,3 km/h).
+                </Text>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -1316,6 +1993,504 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.xs,
     color: Colors.textSecondary,
     textAlign: "center",
+    fontWeight: "500",
+  },
+
+  // Info Glossary & Week Mileage Badge
+  infoGlossaryBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.primaryMuted,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  weekMileageBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.primaryMuted,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+  },
+  weekMileageText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Colors.primary,
+  },
+
+  // Rest Day Positive Styling
+  restDayContainer: {
+    paddingBottom: Spacing.xs,
+  },
+  restDayHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  restIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primaryMuted,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  restHeaderTextCol: {
+    flex: 1,
+  },
+  restCategory: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: "800",
+    color: Colors.primary,
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  restTitle: {
+    fontSize: Typography.sizes.xl,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+  },
+  restPraiseText: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: Spacing.md,
+    fontWeight: "500",
+  },
+  restPillarsGrid: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  restPillarCard: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.lg,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+  },
+  restPillarEmoji: {
+    fontSize: 20,
+    marginBottom: 4,
+  },
+  restPillarTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+    marginBottom: 2,
+    textAlign: "center",
+  },
+  restPillarDesc: {
+    fontSize: 9.5,
+    color: Colors.textSecondary,
+    lineHeight: 13,
+    textAlign: "center",
+  },
+
+  // Secondary Activities (Vélotaf, etc.)
+  secondaryActivitiesBox: {
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  secondaryActivitiesHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+  },
+  secondaryActivitiesHeaderTitle: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: "800",
+    color: Colors.textSecondary,
+    letterSpacing: 0.6,
+  },
+  secondaryActivityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.lg,
+    padding: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  secondaryActivityIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.badgeGray,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryActivityContent: {
+    flex: 1,
+  },
+  secondaryActivityTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 2,
+  },
+  secondaryActivityTitle: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    flex: 1,
+    marginRight: 6,
+  },
+  commuteBadge: {
+    backgroundColor: Colors.badgeGray,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  commuteBadgeText: {
+    fontSize: 9.5,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+  },
+  secondaryActivityMeta: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.textSecondary,
+    fontWeight: "500",
+  },
+  // Mode Gris (Vélotaf / Déplacements seuls)
+  sessionCardGray: {
+    padding: Spacing.xl,
+    marginBottom: Spacing.xl,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  sessionIconBoxGray: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sessionCategoryTextGray: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#64748B",
+    letterSpacing: 0.6,
+  },
+  sessionTitleGray: {
+    fontSize: 19,
+    fontWeight: "800",
+    color: "#334155",
+  },
+  commuteBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  commuteHeaderBadge: {
+    backgroundColor: "#E2E8F0",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  commuteHeaderBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#475569",
+  },
+  metricsRowGray: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: Spacing.md,
+    backgroundColor: "rgba(255, 255, 255, 0.75)",
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  metricValueGray: {
+    fontSize: Typography.sizes.md,
+    fontWeight: "700",
+    color: "#475569",
+  },
+  commuteTagsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: Spacing.md,
+  },
+  commuteTag: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#475569",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  commuteNoticeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  commuteNoticeText: {
+    flex: 1,
+    fontSize: Typography.sizes.xs,
+    color: "#64748B",
+    lineHeight: 16,
+    fontWeight: "500",
+  },
+  // Permutation & Deuxième séance interactive
+  activeSecondaryNoticeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Colors.primaryMuted,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+  },
+  swappedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  swappedBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Colors.primary,
+    letterSpacing: 0.5,
+  },
+  resetPrimaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.card,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  resetPrimaryBtnText: {
+    fontSize: 10.5,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+  },
+  secondaryActivityRowGray: {
+    backgroundColor: "#F8FAFC",
+    borderColor: "#E2E8F0",
+    opacity: 0.88,
+  },
+  secondaryActivityRowInteractive: {
+    backgroundColor: Colors.card,
+    borderColor: Colors.primaryBorder,
+  },
+  secondaryActivityIconBoxGray: {
+    backgroundColor: "#E2E8F0",
+  },
+  secondaryActivityIconBoxActive: {
+    backgroundColor: Colors.primaryMuted,
+  },
+  secondaryActivityTitleGray: {
+    color: "#64748B",
+  },
+  commuteBadgeGray: {
+    backgroundColor: "#E2E8F0",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  commuteBadgeTextGray: {
+    fontSize: 9.5,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  secondaryActivityMetaGray: {
+    fontSize: Typography.sizes.xs,
+    color: "#94A3B8",
+    fontWeight: "500",
+  },
+  usefulSessionBadge: {
+    backgroundColor: Colors.primaryMuted,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  usefulSessionBadgeText: {
+    fontSize: 9.5,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+  switchSessionActionBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.primaryMuted,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    marginLeft: 6,
+  },
+  switchSessionActionText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Colors.primary,
+  },
+
+  // Petits bandeaux compacts pour activités hors prépa (Vélotaf, Randonnée, Déplacements)
+  compactNonPrepCard: {
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    backgroundColor: Colors.card,
+  },
+  compactNonPrepHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 10,
+  },
+  compactNonPrepHeaderText: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: "800",
+    color: Colors.textSecondary,
+    letterSpacing: 0.6,
+  },
+  compactNonPrepList: {
+    gap: 8,
+  },
+  compactActivityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#F8FAFC",
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  compactActivityIconBox: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  compactActivityTitle: {
+    flex: 1,
+    fontSize: Typography.sizes.sm,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  compactActivityDistance: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: "700",
+    color: "#64748B",
+    backgroundColor: "#E2E8F0",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+  },
+
+  // Modal Lexique
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    backgroundColor: Colors.card,
+    borderTopLeftRadius: BorderRadius.xxl,
+    borderTopRightRadius: BorderRadius.xxl,
+    paddingTop: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.xxxl,
+    maxHeight: "82%",
+    ...Shadows.cardHover,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  modalTitle: {
+    fontSize: Typography.sizes.lg,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+  },
+  modalScroll: {
+    marginBottom: Spacing.md,
+  },
+  glossaryItem: {
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  glossaryBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: Colors.primaryMuted,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+    marginBottom: 6,
+  },
+  glossaryBadgeText: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: "800",
+    color: Colors.primary,
+  },
+  glossaryTermTitle: {
+    fontSize: Typography.sizes.md,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  glossaryDefinition: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textSecondary,
+    lineHeight: 20,
     fontWeight: "500",
   },
 });

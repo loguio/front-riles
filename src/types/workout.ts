@@ -48,6 +48,27 @@ export interface WorkoutSession {
   actualSplitsJson?: any;
   tss?: number;
   completedAt?: string;
+  sportType?: string;
+  isCommute?: boolean;
+  secondaryActivities?: SecondaryActivity[];
+}
+
+export interface SecondaryActivity {
+  id: string;
+  title: string;
+  sportType: string;
+  distanceKm: number;
+  durationSec: number;
+  durationLabel: string;
+  paceOrSpeedLabel?: string;
+  isCommute?: boolean;
+  actualAvgHeartRate?: number;
+  actualMaxHeartRate?: number;
+  actualElevationGain?: number;
+  actualCalories?: number;
+  actualCadence?: number;
+  category?: string;
+  tss?: number;
 }
 
 export interface MultiWeekPlanResponse {

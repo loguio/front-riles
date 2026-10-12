@@ -104,7 +104,7 @@ export const chatService = {
         const foundDay = days.find((d) => lowerText.includes(d));
         const ruleData = foundDay
           ? {
-              title: "Jours sanctuarisés",
+              title: "Jours indisponibles",
               description: `Aucune séance programmée le ${foundDay}.`,
               icon: "calendar-lock",
             }
