@@ -18,12 +18,12 @@ const DEFAULT_ONBOARDING_STATE: OnboardingState = {
   currentStep: 1,
   authMethod: null,
   userEmail: "",
-  mainGoal: "Me préparer pour mon premier semi-marathon sans me blesser",
+  mainGoal: "",
   selectedSports: ["running"],
-  connectedApps: ["garmin", "strava"],
+  connectedApps: [],
   selectedPlan: "pro",
   isCompleted: false,
-  stravaSixMonthsSummary: DEFAULT_STRAVA_SIX_MONTHS_SUMMARY,
+  stravaSixMonthsSummary: undefined,
 };
 
 function buildLocalGoalReformulation(rawGoal: string): GoalReformulationResult {

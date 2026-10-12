@@ -95,12 +95,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutSession | null>(
     null,
   );
-  const [rpeCheckIn, setRpeCheckIn] = useState<RpeCheckIn | null>({
-    rating: 5,
-    feedbackLabel: "Modéré",
-    aiPreservationMessage:
-      "L'IA a ajusté le seuil pour préserver tes mollets aujourd'hui.",
-  });
+  const [rpeCheckIn, setRpeCheckIn] = useState<RpeCheckIn | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [quickPrompts, setQuickPrompts] = useState<QuickPrompt[]>([]);
   const [isCoachTyping, setIsCoachTyping] = useState<boolean>(false);

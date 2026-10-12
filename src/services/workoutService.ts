@@ -77,8 +77,7 @@ export const workoutService = {
   },
 
   /**
-   * Récupère les séances d'une semaine spécifique depuis l'API NestJS.
-   * Si le backend n'est pas joignable ou retourne une liste vide, s'appuie sur le registre local.
+   * Récupère les séances d'une semaine spécifique depuis l'API NestJS (100% données réelles).
    */
   async getWeekWorkouts(
     weekNumber = 42,
@@ -88,22 +87,24 @@ export const workoutService = {
       const data = await apiClient.get<WorkoutSession[]>("workouts/week", {
         params: { week: weekNumber, year },
       });
-      if (Array.isArray(data) && data.length > 0) {
-        registerWorkouts(data);
+      if (Array.isArray(data)) {
+        if (data.length > 0) {
+          registerWorkouts(data);
+        }
         return data;
       }
-      return getWorkoutsForWeekSync(weekNumber, year);
+      return [];
     } catch (error) {
       console.warn(
-        `[Riles API Fallback] GET /workouts/week?week=${weekNumber}&year=${year}. Utilisation du registre local :`,
+        `[Riles API] GET /workouts/week?week=${weekNumber}&year=${year} error:`,
         error,
       );
-      return getWorkoutsForWeekSync(weekNumber, year);
+      return [];
     }
   },
 
   /**
-   * Récupère toutes les séances du mois sous forme de Record<dateKey, WorkoutSession>.
+   * Récupère toutes les séances du mois sous forme de Record<dateKey, WorkoutSession> (100% données réelles).
    */
   async getMonthWorkouts(
     month = 9,
@@ -116,17 +117,19 @@ export const workoutService = {
           params: { month, year },
         },
       );
-      if (data && typeof data === "object" && Object.keys(data).length > 0) {
-        registerWorkouts(Object.values(data));
+      if (data && typeof data === "object") {
+        if (Object.keys(data).length > 0) {
+          registerWorkouts(Object.values(data));
+        }
         return data;
       }
-      return getWorkoutsForMonthSync(month, year);
+      return {};
     } catch (error) {
       console.warn(
-        `[Riles API Fallback] GET /workouts/month?month=${month}&year=${year}. Utilisation du registre local :`,
+        `[Riles API] GET /workouts/month?month=${month}&year=${year} error:`,
         error,
       );
-      return getWorkoutsForMonthSync(month, year);
+      return {};
     }
   },
 
@@ -136,10 +139,9 @@ export const workoutService = {
   async getWorkoutByDateKey(dateKey: string): Promise<WorkoutSession | null> {
     try {
       const res = await apiClient.get<WorkoutSession>(`workouts/${dateKey}`);
-      if (res) return res;
-      return getWorkoutByDateKeySync(dateKey) || null;
+      return res || null;
     } catch (error) {
-      return getWorkoutByDateKeySync(dateKey) || null;
+      return null;
     }
   },
 

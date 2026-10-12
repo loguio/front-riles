@@ -9,13 +9,13 @@ export const chatService = {
   async getChatHistory(): Promise<ChatMessage[]> {
     try {
       const messages = await apiClient.get<ChatMessage[]>("coach/history");
-      if (Array.isArray(messages) && messages.length > 0) {
+      if (Array.isArray(messages)) {
         return messages;
       }
-      return INITIAL_CHAT_MESSAGES;
+      return [];
     } catch (error) {
-      console.warn("API chatService.getChatHistory fallback:", error);
-      return INITIAL_CHAT_MESSAGES;
+      console.warn("API chatService.getChatHistory error:", error);
+      return [];
     }
   },
 
