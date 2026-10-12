@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Animated,
+  Easing,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -92,12 +93,23 @@ export default function OnboardingScreen() {
     "wizard" | "generating" | "review"
   >(() => (params.mode === "review" ? "review" : "wizard"));
   const [generationProgress, setGenerationProgress] = useState<number>(0);
+  const [displayProgress, setDisplayProgress] = useState<number>(0);
   const [generationStatusIndex, setGenerationStatusIndex] = useState<number>(0);
   const [generatedPlanData, setGeneratedPlanData] =
     useState<GeneratedPlanOverview | null>(null);
   const [isWeeksExpanded, setIsWeeksExpanded] = useState<boolean>(false);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const animatedProgress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const listenerId = animatedProgress.addListener(({ value }) => {
+      setDisplayProgress(Math.min(100, Math.round(value)));
+    });
+    return () => {
+      animatedProgress.removeListener(listenerId);
+    };
+  }, [animatedProgress]);
 
   const LOADING_MESSAGES = [
     "Analyse de tes habitudes & disponibilités...",
@@ -592,30 +604,24 @@ export default function OnboardingScreen() {
         apps: connectedAppIds,
       });
       setOnboardingViewMode("generating");
-      setGenerationProgress(10);
       setGenerationStatusIndex(0);
+      animatedProgress.setValue(6);
 
-      const startTime = Date.now();
-      const interval = setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        if (elapsed < 1000) {
-          setGenerationStatusIndex(0);
-        } else if (elapsed < 2000) {
-          setGenerationStatusIndex(1);
-        } else {
-          setGenerationStatusIndex(2);
-        }
+      // Animation continue à 60 FPS ultra fluide vers 92%
+      const smoothAnim = Animated.timing(animatedProgress, {
+        toValue: 92,
+        duration: 4500,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      });
+      smoothAnim.start();
 
-        setGenerationProgress((prev) => {
-          if (prev >= 92) return 92;
-          const remaining = 92 - prev;
-          return prev + Math.max(1.2, remaining * 0.1);
-        });
-      }, 150);
+      const msgTimer1 = setTimeout(() => setGenerationStatusIndex(1), 1400);
+      const msgTimer2 = setTimeout(() => setGenerationStatusIndex(2), 2800);
 
-      // Cap à 3 secondes minimum garanti si la requête est plus rapide
+      // Cap à 3 secondes minimum garanti pour apprécier la fluidité
       const minDelayPromise = new Promise((resolve) =>
-        setTimeout(resolve, 3000),
+        setTimeout(resolve, 3200),
       );
       const backendPromise = completeOnboarding({
         currentStep: 5,
@@ -638,9 +644,19 @@ export default function OnboardingScreen() {
       } catch (err) {
         console.error("Failed to complete onboarding:", err);
       } finally {
-        clearInterval(interval);
-        setGenerationProgress(100);
+        clearTimeout(msgTimer1);
+        clearTimeout(msgTimer2);
         setGenerationStatusIndex(2);
+
+        // Transition d'arrivée douce vers 100 %
+        await new Promise<void>((resolve) => {
+          Animated.timing(animatedProgress, {
+            toValue: 100,
+            duration: 450,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: false,
+          }).start(() => resolve());
+        });
       }
 
       if (completedState && completedState.generatedPlan) {
@@ -650,7 +666,7 @@ export default function OnboardingScreen() {
       setTimeout(() => {
         setOnboardingViewMode("review");
         setIsSubmitting(false);
-      }, 500);
+      }, 400);
     } catch (err) {
       console.error("Error setting up plan generation:", err);
       setIsSubmitting(false);
@@ -683,20 +699,23 @@ export default function OnboardingScreen() {
             {/* Titre épuré */}
             <Text style={styles.cuteLoadingTitle}>Création de ton plan</Text>
 
-            {/* Barre de progression stylisée avec animation sympathique */}
+            {/* Barre de progression stylisée avec animation fluide continue */}
             <View style={styles.cuteProgressWrapper}>
               <View style={styles.cuteProgressTrack}>
-                <View
+                <Animated.View
                   style={[
                     styles.cuteProgressFill,
                     {
-                      width: `${Math.min(100, Math.max(8, generationProgress))}%`,
+                      width: animatedProgress.interpolate({
+                        inputRange: [0, 100],
+                        outputRange: ["0%", "100%"],
+                      }),
                     },
                   ]}
                 />
               </View>
               <Text style={styles.cuteProgressPercent}>
-                {Math.round(generationProgress)}%
+                {displayProgress}%
               </Text>
             </View>
 
@@ -2873,6 +2892,9 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 5,
     backgroundColor: Colors.primary,
+    ...(Platform.OS === "web"
+      ? { transition: "width 0.2s cubic-bezier(0.25, 0.1, 0.25, 1)" }
+      : {}),
   },
   cuteProgressPercent: {
     fontSize: 13,

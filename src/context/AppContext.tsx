@@ -122,6 +122,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsLoading(true);
       setErrorMessage(null);
 
+      // Synchronisation incrémentale Strava (Safety Net à l'ouverture / pull-to-refresh)
+      await workoutService.syncRecentActivities(7).catch(() => {});
+
       const [
         onboardingState,
         profile,
@@ -183,15 +186,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         setActiveYearState(year);
 
         const weekDays = getDaysOfWeek(year, week);
+        const targetMonth =
+          weekDays.length > 0 ? weekDays[0].month : activeMonth;
         if (weekDays.length > 0) {
-          setActiveMonthState(weekDays[0].month);
+          setActiveMonthState(targetMonth);
         }
 
-        const newWeekWorkouts = await workoutService.getWeekWorkouts(
-          week,
-          year,
-        );
+        const [newWeekWorkouts, newMonthWorkouts] = await Promise.all([
+          workoutService.getWeekWorkouts(week, year),
+          workoutService.getMonthWorkouts(targetMonth, year),
+        ]);
         setWorkouts(newWeekWorkouts);
+        setMonthWorkouts(newMonthWorkouts);
 
         // Vérifie si le jour sélectionné est dans cette semaine
         const currentInWeek = newWeekWorkouts.find(

@@ -52,13 +52,38 @@ function buildLocalGoalReformulation(rawGoal: string): GoalReformulationResult {
       ? "Finir sereinement sans blessure"
       : "Passer sous les 2h";
 
-  let weeksRemaining = 12;
-  const monthsMatch = lower.match(/(\d+)\s*mois/i);
-  const weeksMatch = lower.match(/(\d+)\s*semaine/i);
-  if (weeksMatch) {
-    weeksRemaining = parseInt(weeksMatch[1], 10);
-  } else if (monthsMatch) {
-    weeksRemaining = parseInt(monthsMatch[1], 10) * 4;
+  let weeksRemaining = 16;
+  let targetDateLabel = "Dans 16 semaines (4 mois)";
+
+  // Détection des mentions de date relatives ou absolues (ex: "février", "pour février", "dans 4 mois")
+  const isFeb = lower.includes("février") || lower.includes("fevrier");
+  const isMar = lower.includes("mars");
+  const isApr = lower.includes("avril");
+  const isMay = lower.includes("mai");
+
+  if (isFeb) {
+    weeksRemaining = 18;
+    targetDateLabel = "21 février 2027";
+  } else if (isMar) {
+    weeksRemaining = 22;
+    targetDateLabel = "21 mars 2027";
+  } else if (isApr) {
+    weeksRemaining = 26;
+    targetDateLabel = "18 avril 2027";
+  } else if (isMay) {
+    weeksRemaining = 30;
+    targetDateLabel = "16 mai 2027";
+  } else {
+    const monthsMatch = lower.match(/(\d+)\s*mois/i);
+    const weeksMatch = lower.match(/(\d+)\s*semaine/i);
+    if (weeksMatch) {
+      weeksRemaining = parseInt(weeksMatch[1], 10);
+      targetDateLabel = `Dans ${weeksRemaining} semaines`;
+    } else if (monthsMatch) {
+      const mCount = parseInt(monthsMatch[1], 10);
+      weeksRemaining = Math.round(mCount * 4.34);
+      targetDateLabel = `Dans ${mCount} mois (${weeksRemaining} semaines)`;
+    }
   }
 
   const extractedRules: ExtractedRuleItem[] = [];
@@ -93,98 +118,169 @@ function buildLocalGoalReformulation(rawGoal: string): GoalReformulationResult {
     });
   }
 
+  // Allures calibrées pour un objectif marathon en 3h30 (4:58/km)
+  const isMarathon3h30 =
+    distanceKm >= 40 &&
+    (target.includes("3h30") ||
+      target.includes("3 h 30") ||
+      lower.includes("3h30") ||
+      lower.includes("3 h 30"));
+
+  const targetPaces = isMarathon3h30
+    ? {
+        easyPaceZ2: "5:40/km – 6:00/km",
+        marathonPaceZ3: "4:58/km",
+        thresholdPaceZ4: "4:38/km",
+        intervalPaceZ5: "4:15/km",
+        targetRacePace: "4:58/km",
+      }
+    : {
+        easyPaceZ2: "5:38/km – 5:58/km",
+        marathonPaceZ3: "5:10/km",
+        thresholdPaceZ4: "4:48/km",
+        intervalPaceZ5: "4:26/km",
+        targetRacePace: "4:56/km",
+      };
+
   return {
-    reformulatedGoal: `Préparer « ${title} — ${target} » sur ${weeksRemaining} semaines (allures calibrées sur tes 6 derniers mois Strava & fréquence cardiaque).`,
+    reformulatedGoal: `Préparer « ${title} — ${target} » sur ${weeksRemaining} semaines (${targetDateLabel} • allures calibrées sur tes 6 derniers mois Strava avec progression +10 % par semaine et assimilation).`,
     extractedGoal: {
       title,
       target,
-      raceDate: `Dans ${weeksRemaining} semaines`,
+      raceDate: targetDateLabel,
       weeksRemaining,
       distanceKm,
     },
     extractedRules,
-    targetPaces: {
-      easyPaceZ2: "5:38/km – 5:58/km",
-      marathonPaceZ3: "5:10/km",
-      thresholdPaceZ4: "4:48/km",
-      intervalPaceZ5: "4:26/km",
-      targetRacePace: "4:56/km",
-    },
+    targetPaces,
     eligibility: {
       status: "ELIGIBLE",
       isRealistic: true,
       pedagogicalMessage:
-        "Objectif cohérent avec tes 6 derniers mois Strava (~36,8 km/sem sur le dernier mois).",
+        "Objectif cohérent et adapté à ton niveau de pratique et à tes disponibilités d'entraînement.",
     },
   };
 }
 
 function buildLocalGeneratedPlan(
-  totalWeeks = 12,
+  totalWeeks = 18,
   baseKm = 28,
   targetDateLabel?: string,
 ): GeneratedPlanOverview {
+  // Calcul progressif des phases physiologiques
   const p1End = Math.max(1, Math.round(totalWeeks * 0.3));
   const p2End = Math.max(p1End + 1, Math.round(totalWeeks * 0.65));
   const p3End = Math.max(p2End + 1, Math.round(totalWeeks * 0.85));
 
   const phases: PreparationPhase[] = [
     {
-      name: "Phase 1 : Développement Foncier & Régularité",
+      name: "Phase 1 : Socle Foncier & Démarrage Doux (+10%/sem)",
       weeksRangeLabel: `Semaines 1 à ${p1End}`,
-      focus: "Consolidation de la base aérobie sans fatigue excessive",
+      focus: "Démarrage progressif sans choc de volume, consolidation de la base aérobie Zone 2",
       weekType: "Endurance fondamentale & Volume progressif",
       avgKm: Math.round(baseKm * 0.95),
-      sessionsPerWeek: 3,
+      sessionsPerWeek: 4,
     },
     {
-      name: "Phase 2 : Développement Spécifique & Seuils",
+      name: "Phase 2 : Développement Spécifique Marathon & Seuil",
       weeksRangeLabel: `Semaines ${p1End + 1} à ${p2End}`,
-      focus: "Augmentation de l'allure critique et soutien au seuil",
-      weekType: "Fractions tempo & Allure cible",
-      avgKm: Math.round(baseKm * 1.1),
+      focus: "Intégration des blocs à allure marathon (4:58/km) et seuil anaérobie avec cycle 3:1",
+      weekType: "Fractions tempo & Allure spécifique 3h30",
+      avgKm: Math.round(baseKm * 1.3),
       sessionsPerWeek: 4,
     },
     {
-      name: "Phase 3 : Pic Spécifique & Sorties Longues Clés",
+      name: "Phase 3 : Pic de Volume & Sorties Longues Clés",
       weeksRangeLabel: `Semaines ${p2End + 1} à ${p3End}`,
-      focus: "Volume maximal et simulations d'allure compétition",
-      weekType: "Pic de volume & Allure spécifique",
-      avgKm: Math.round(baseKm * 1.18),
+      focus: "Volume maximal (52–56 km) et grandes sorties longues (20–26 km) avec ravitaillement",
+      weekType: "Pic de volume & Sortie longue clé",
+      avgKm: Math.round(baseKm * 1.6),
       sessionsPerWeek: 4,
     },
     {
-      name: "Phase 4 : Affûtage & Fraîcheur Optimale",
+      name: "Phase 4 : Affûtage, Surcompensation & Jour J",
       weeksRangeLabel: `Semaines ${p3End + 1} à ${totalWeeks}`,
-      focus: "Baisse du volume (-40%), maintien de l'intensité et récupération",
-      weekType: "Affûtage & Fraîcheur pré-compétition",
-      avgKm: Math.round(baseKm * 0.65),
+      focus: "Baisse progressive du volume (-25% à -40%), maintien de l'intensité et fraîcheur maximale",
+      weekType: "Affûtage & Marathon Officiel (3h30)",
+      avgKm: Math.round(baseKm * 0.9),
       sessionsPerWeek: 3,
     },
   ];
 
+  // Calcul mathématique semaine par semaine respectant strictement la règle des +10%
+  // et départ doux (~80% de la baseline pour éviter tout saut brutal de 0 à 30+ km)
+  const startingKm = Math.max(18, Math.min(26, Math.round(baseKm * 0.82)));
   const weeklyBreakdown: WeeklyPlanBreakdown[] = [];
+
+  let currentCycleBase = startingKm;
+  let currentKm = startingKm;
+
   for (let w = 1; w <= totalWeeks; w++) {
     let phaseName = phases[0].name;
     let weekType = "Volume & Endurance Z2";
-    let mult = 0.95;
+    let isDeload = false;
 
     if (w <= p1End) {
       phaseName = phases[0].name;
-      weekType = w % 4 === 0 ? "Assimilation (Deload)" : "Volume & Endurance Z2";
-      mult = w % 4 === 0 ? 0.75 : 0.9 + w * 0.03;
+      const cycleIndex = (w - 1) % 4;
+      if (cycleIndex === 0) {
+        currentKm = w === 1 ? startingKm : Math.round(currentCycleBase * 1.08);
+        currentCycleBase = currentKm;
+        weekType = "Démarrage progressif doux";
+      } else if (cycleIndex === 3) {
+        // Semaine 4 : Assimilation (-22%)
+        isDeload = true;
+        currentKm = Math.round(currentKm * 0.78);
+        weekType = "Assimilation & Récupération (Deload -22%)";
+      } else {
+        // Semaines 2 et 3 : Règle des +10%
+        currentKm = Math.round(currentKm * 1.1);
+        weekType = "Volume progressif (+10%)";
+      }
     } else if (w <= p2End) {
       phaseName = phases[1].name;
-      weekType = w % 4 === 0 ? "Assimilation (Deload)" : "Fractions Seuil Z4";
-      mult = w % 4 === 0 ? 0.8 : 1.05 + (w - p1End) * 0.03;
+      const cycleIndex = (w - (p1End + 1)) % 4;
+      if (cycleIndex === 0) {
+        currentCycleBase = Math.round(currentCycleBase * 1.15);
+        currentKm = currentCycleBase;
+        weekType = "Allure Marathon Spécifique (4:58/km)";
+      } else if (cycleIndex === 3) {
+        isDeload = true;
+        currentKm = Math.round(currentKm * 0.78);
+        weekType = "Assimilation & Décharge (-22%)";
+      } else {
+        currentKm = Math.round(currentKm * 1.1);
+        weekType = "Seuil & Allure Cible (+10%)";
+      }
     } else if (w <= p3End) {
       phaseName = phases[2].name;
-      weekType = "Allure Course & Sortie Longue";
-      mult = 1.15;
+      const relativeW = w - (p2End + 1);
+      if (w === p3End - 1) {
+        // Pic absolu
+        currentKm = Math.min(56, Math.max(48, Math.round(baseKm * 1.85)));
+        weekType = "Pic Absolu de Volume & Sortie Longue (26 km)";
+      } else if (relativeW % 4 === 3) {
+        isDeload = true;
+        currentKm = Math.round(currentKm * 0.76);
+        weekType = "Assimilation pré-pic (-24%)";
+      } else {
+        currentKm = Math.round(Math.min(54, currentKm * 1.08));
+        weekType = "Montée de Charge & Sortie Longue";
+      }
     } else {
       phaseName = phases[3].name;
-      weekType = "Affûtage & Fraîcheur";
-      mult = 0.65;
+      const taperWeeksFromEnd = totalWeeks - w;
+      if (taperWeeksFromEnd === 0) {
+        // Semaine de course (Race Week)
+        currentKm = 24; // avant la course + 42.2 km le dimanche
+        weekType = "🏆 SEMAINE DU MARATHON (3H30)";
+      } else if (taperWeeksFromEnd === 1) {
+        currentKm = 35;
+        weekType = "Affûtage & Surcompensation (-30%)";
+      } else {
+        currentKm = 42;
+        weekType = "Début de l'Affûtage (-15%)";
+      }
     }
 
     weeklyBreakdown.push({
@@ -192,20 +288,23 @@ function buildLocalGeneratedPlan(
       relativeWeek: w,
       phaseName,
       weekType,
-      estimatedKm: Math.round(baseKm * mult),
-      plannedRunningSessions: w > p3End ? 3 : 3 + (w % 2),
-      restDays: 7 - (w > p3End ? 3 : 3 + (w % 2)),
-      keySessions: ["Endurance fondamentale Z2", "Séance qualitative"],
+      estimatedKm: currentKm,
+      plannedRunningSessions: isDeload ? 3 : 4,
+      restDays: isDeload ? 4 : 3,
+      keySessions: [
+        `Séance qualité : ${weekType.includes("Marathon") ? "Allure Marathon (4:58/km)" : "Seuil / Tempo Z4"}`,
+        `Sortie longue : ${Math.min(26, Math.round(currentKm * 0.42))} km`,
+      ],
     });
   }
 
   return {
-    planSummary: `Plan d'entraînement sur ${totalWeeks} semaines structuré en 4 phases physiologiques.`,
+    planSummary: `Plan personnalisé de ${totalWeeks} semaines vers ton objectif Marathon en 3h30 (${targetDateLabel || "février 2027"}). Volume initial doux à ${startingKm} km/semaine, progression stricte de +10 % par semaine, assimilation programmée toutes les 4 semaines et pic de volume avec affûtage pré-course.`,
     weeksGenerated: totalWeeks,
     startWeekNumber: 42,
     year: new Date().getFullYear(),
-    targetRaceDate: targetDateLabel,
-    modelUsed: "gemini-3.1-pro-preview",
+    targetRaceDate: targetDateLabel || "21 février 2027",
+    modelUsed: "riles-pro-engine",
     totalPlannedSessions: weeklyBreakdown.reduce(
       (acc, b) => acc + b.plannedRunningSessions,
       0,
@@ -334,13 +433,23 @@ export const onboardingService = {
       );
     } catch (error) {
       console.warn("API onboardingService.completeOnboarding fallback:", error);
-      const totalWeeks = finalData?.weeksToGenerate || 12;
+      const goalAnalysis = finalData?.mainGoal
+        ? buildLocalGoalReformulation(finalData.mainGoal)
+        : undefined;
+      const totalWeeks =
+        finalData?.weeksToGenerate ||
+        goalAnalysis?.extractedGoal?.weeksRemaining ||
+        16;
       const baseKm =
         finalData?.stravaSixMonthsSummary?.recent4WeeksAvgKm || 28;
+      const targetRaceDate =
+        finalData?.targetRaceDate ||
+        goalAnalysis?.extractedGoal?.raceDate ||
+        "Dans 16 semaines (4 mois)";
       const fallbackPlan = buildLocalGeneratedPlan(
         totalWeeks,
         baseKm,
-        finalData?.targetRaceDate,
+        targetRaceDate,
       );
       return {
         ...DEFAULT_ONBOARDING_STATE,

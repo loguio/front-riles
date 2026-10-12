@@ -12,6 +12,9 @@ export interface WorkoutSession {
   dateKey: string; // YYYY-MM-DD
   dayName: string; // e.g. 'Mer'
   dayNumber: number; // e.g. 14
+  month?: number; // 0-11
+  year?: number;
+  weekNumber?: number;
   fullDateLabel: string; // e.g. 'MERCREDI 14 OCTOBRE'
   timeLabel?: string; // e.g. "AUJOURD'HUI • 18:30"
   status: WorkoutStatus;

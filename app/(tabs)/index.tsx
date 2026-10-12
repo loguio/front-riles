@@ -25,6 +25,7 @@ import { DashboardSkeleton } from "../../src/components/ui/DashboardSkeleton";
 import { useApp } from "../../src/context/AppContext";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../src/services";
+import { formatDateKey } from "../../src/utils/dateUtils";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -32,7 +33,7 @@ export default function HomeScreen() {
   const {
     user,
     workouts,
-    selectedWorkout,
+    monthWorkouts,
     rpeCheckIn,
     submitRpe,
     isLoading,
@@ -45,6 +46,7 @@ export default function HomeScreen() {
   const [isRpeSaved, setIsRpeSaved] = useState<boolean>(false);
   const [isSavingRpe, setIsSavingRpe] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [showRpeInput, setShowRpeInput] = useState<boolean>(false);
 
   useEffect(() => {
     if (rpeCheckIn?.rating) {
@@ -76,11 +78,54 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  const heroSession = selectedWorkout;
-  const isHeroDone = heroSession?.status === "done";
-  const lastCompletedSession =
-    [...workouts].reverse().find((w) => w.status === "done" && !w.isRestDay) ||
+  // Date actuelle réelle du jour
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth();
+  const currentDay = today.getDate();
+  const todayDateKey = formatDateKey(currentYear, currentMonth, currentDay);
+
+  const frenchDaysFull = [
+    "DIMANCHE",
+    "LUNDI",
+    "MARDI",
+    "MERCREDI",
+    "JEUDI",
+    "VENDREDI",
+    "SAMEDI",
+  ];
+  const frenchMonthsFull = [
+    "JANVIER",
+    "FÉVRIER",
+    "MARS",
+    "AVRIL",
+    "MAI",
+    "JUIN",
+    "JUILLET",
+    "AOÛT",
+    "SEPTEMBRE",
+    "OCTOBRE",
+    "NOVEMBRE",
+    "DÉCEMBRE",
+  ];
+  const todayFullDateLabel = `${frenchDaysFull[today.getDay()]} ${currentDay} ${frenchMonthsFull[currentMonth]}`;
+
+  // La séance du jour affichée sur la page Home est STRICTEMENT celle du jour réel (jamais la sélection du calendrier)
+  const todayWorkout =
+    monthWorkouts?.[todayDateKey] ||
+    workouts.find((w) => w.dateKey === todayDateKey) ||
     null;
+
+  const heroSession = todayWorkout;
+  const isHeroDone = heroSession?.status === "done";
+  const isHeroRest = heroSession?.isRestDay || heroSession?.status === "rest";
+
+  // Récupération de la dernière vraie séance terminée (sur tout le mois / historique)
+  const allSessions = Object.values(monthWorkouts || {});
+  const doneSessions = (allSessions.length > 0 ? allSessions : workouts)
+    .filter((w) => w.status === "done" && !w.isRestDay)
+    .sort((a, b) => b.dateKey.localeCompare(a.dateKey));
+  const lastCompletedSession = doneSessions[0] || null;
 
   if (isLoading && !user) {
     return <DashboardSkeleton />;
@@ -128,7 +173,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
           <View style={styles.greetingContainer}>
             <Text style={styles.headerDate}>
-              {heroSession?.fullDateLabel || "MERCREDI 14 OCTOBRE"}
+              {todayFullDateLabel}
             </Text>
             <Text style={styles.headerTitle}>
               {t("home:header.greeting", { name: user?.name || "Marius" })}
@@ -147,7 +192,9 @@ export default function HomeScreen() {
           <Text style={styles.heroTimeLabel}>
             {isHeroDone
               ? `SÉANCE RÉALISÉE${heroSession?.sourceProvider ? ` • ${heroSession.sourceProvider.toUpperCase()}` : ""}`
-              : heroSession?.timeLabel || "AUJOURD'HUI • 18:30"}
+              : isHeroRest
+                ? "AUJOURD'HUI • JOUR DE REPOS"
+                : heroSession?.timeLabel || "AUJOURD'HUI • 18:30"}
           </Text>
           <TouchableOpacity
             style={styles.heroLightningBtn}
@@ -159,7 +206,10 @@ export default function HomeScreen() {
         </View>
 
         <Text style={styles.heroTitle}>
-          {heroSession?.title || "Sortie Seuil & Allure Cible"}
+          {heroSession?.title ||
+            (isHeroRest
+              ? "Repos Sanctuarisé & Régénération"
+              : "Footing Fondamental Z2")}
         </Text>
 
         {/* Tags row: affiche les vraies données exécutées si la séance est terminée (done), sinon les cibles */}
@@ -186,6 +236,24 @@ export default function HomeScreen() {
                 />
               )}
             </>
+          ) : isHeroRest ? (
+            <>
+              <Badge
+                label="Repos"
+                variant="heroTag"
+                style={styles.heroTagItem}
+              />
+              <Badge
+                label="Récupération active"
+                variant="heroTag"
+                style={styles.heroTagItem}
+              />
+              <Badge
+                label="Sommeil & Hydratation"
+                variant="heroTag"
+                style={styles.heroTagItem}
+              />
+            </>
           ) : heroSession?.tags && heroSession.tags.length > 0 ? (
             heroSession.tags.map((tag, idx) => (
               <Badge
@@ -198,17 +266,17 @@ export default function HomeScreen() {
           ) : (
             <>
               <Badge
-                label={heroSession?.distance || "8,5 km"}
+                label={heroSession?.distance || "5,1 km"}
                 variant="heroTag"
                 style={styles.heroTagItem}
               />
               <Badge
-                label={`Allure cible : ${heroSession?.targetPace || "4:45/km"}`}
+                label={`Allure cible : ${heroSession?.targetPace || "5:35/km"}`}
                 variant="heroTag"
                 style={styles.heroTagItem}
               />
               <Badge
-                label={heroSession?.targetZoneLabel || "Zone 3/4"}
+                label={heroSession?.targetZoneLabel || "Zone 2"}
                 variant="heroTag"
                 style={styles.heroTagItem}
               />
@@ -236,77 +304,141 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* 3. Check-in Card (Ressenti dernière sortie avec vraies données) */}
-      <Card style={styles.checkInCard}>
-        <View style={styles.checkInHeaderRow}>
-          <Text style={styles.checkInSubtitle}>
-            {lastCompletedSession &&
-            lastCompletedSession.actualDistanceKm !== undefined
-              ? `DERNIÈRE SÉANCE • ${lastCompletedSession.actualDistanceKm.toFixed(1).replace(".", ",")} KM À ${lastCompletedSession.actualPace || lastCompletedSession.targetPace}${lastCompletedSession.actualAvgHeartRate ? ` (${lastCompletedSession.actualAvgHeartRate} BPM)` : ""}`
-              : "CHECK-IN • DERNIÈRE SORTIE RÉALISÉE"}
-          </Text>
-          <View style={styles.pulseIconBox}>
-            <MaterialCommunityIcons
-              name="heart-pulse"
-              size={20}
-              color={Colors.primary}
-            />
-          </View>
-        </View>
-
-        <Text style={styles.checkInTitle}>Ressenti dernière{"\n"}sortie</Text>
-
-        {/* Interactive Effort Slider */}
-        <EffortSlider
-          value={currentRpe}
-          min={1}
-          max={10}
-          onValueChange={handleSliderChange}
-        />
-
-        {/* Save confirmation button */}
-        <View style={styles.rpeActionRow}>
-          <TouchableOpacity
-            style={[styles.saveRpeBtn, isRpeSaved && styles.saveRpeBtnDone]}
-            onPress={handleSaveRpe}
-            disabled={isSavingRpe}
-            activeOpacity={0.8}
-          >
-            {isSavingRpe ? (
-              <ActivityIndicator size="small" color={Colors.primary} />
-            ) : (
-              <Ionicons
-                name={isRpeSaved ? "checkmark-circle" : "save-outline"}
-                size={16}
-                color={isRpeSaved ? Colors.successText : Colors.primary}
-              />
-            )}
-            <Text
-              style={[styles.saveRpeText, isRpeSaved && styles.saveRpeTextDone]}
-            >
-              {isSavingRpe
-                ? "Synchronisation..."
-                : isRpeSaved
-                  ? "Ressenti enregistré ✓"
-                  : "Valider mon ressenti (RPE)"}
+      {/* 3. Carte Dynamique : Check-in post-séance OU Forme & Disponibilité Banister */}
+      {showRpeInput ? (
+        <Card style={styles.checkInCard}>
+          <View style={styles.checkInHeaderRow}>
+            <Text style={styles.checkInSubtitle}>
+              {lastCompletedSession &&
+              lastCompletedSession.actualDistanceKm !== undefined
+                ? `DERNIÈRE SÉANCE • ${lastCompletedSession.actualDistanceKm.toFixed(1).replace(".", ",")} KM À ${lastCompletedSession.actualPace || lastCompletedSession.targetPace}${lastCompletedSession.actualAvgHeartRate ? ` (${lastCompletedSession.actualAvgHeartRate} BPM)` : ""}`
+                : "CHECK-IN • DERNIÈRE SORTIE RÉALISÉE"}
             </Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              onPress={() => setShowRpeInput(false)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="close" size={20} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
 
-        {/* Preservation message */}
-        <View style={styles.aiMessageContainer}>
-          <MaterialCommunityIcons
-            name="shield-check-outline"
-            size={18}
-            color={Colors.primary}
-            style={styles.aiSparkleIcon}
+          <Text style={styles.checkInTitle}>Ressenti dernière{"\n"}sortie</Text>
+
+          {/* Interactive Effort Slider */}
+          <EffortSlider
+            value={currentRpe}
+            min={1}
+            max={10}
+            onValueChange={handleSliderChange}
           />
-          <Text style={styles.aiMessageText}>
-            {rpeCheckIn?.aiPreservationMessage ||
-              "L'IA a ajusté le seuil pour préserver tes mollets aujourd'hui."}
+
+          {/* Save confirmation button */}
+          <View style={styles.rpeActionRow}>
+            <TouchableOpacity
+              style={[styles.saveRpeBtn, isRpeSaved && styles.saveRpeBtnDone]}
+              onPress={async () => {
+                await handleSaveRpe();
+                setTimeout(() => setShowRpeInput(false), 800);
+              }}
+              disabled={isSavingRpe}
+              activeOpacity={0.8}
+            >
+              {isSavingRpe ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Ionicons
+                  name={isRpeSaved ? "checkmark-circle" : "save-outline"}
+                  size={16}
+                  color={isRpeSaved ? Colors.successText : Colors.primary}
+                />
+              )}
+              <Text
+                style={[
+                  styles.saveRpeText,
+                  isRpeSaved && styles.saveRpeTextDone,
+                ]}
+              >
+                {isSavingRpe
+                  ? "Synchronisation..."
+                  : isRpeSaved
+                    ? "Ressenti enregistré ✓"
+                    : "Valider mon ressenti (RPE)"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Preservation message */}
+          <View style={styles.aiMessageContainer}>
+            <MaterialCommunityIcons
+              name="shield-check-outline"
+              size={18}
+              color={Colors.primary}
+              style={styles.aiSparkleIcon}
+            />
+            <Text style={styles.aiMessageText}>
+              {rpeCheckIn?.aiPreservationMessage ||
+                "L'IA ajuste tes allures pour préserver tes tendons et mollets."}
+            </Text>
+          </View>
+        </Card>
+      ) : (
+        /* Carte de Forme & Disponibilité du Jour (Readiness & Banister Load) */
+        <Card style={styles.readinessCard}>
+          <View style={styles.readinessHeaderRow}>
+            <View style={styles.readinessHeaderLeft}>
+              <View style={styles.readinessPulseBox}>
+                <MaterialCommunityIcons
+                  name="heart-pulse"
+                  size={18}
+                  color={Colors.primary}
+                />
+              </View>
+              <Text style={styles.readinessSubtitle}>
+                FORME DU JOUR • FRAÎCHEUR OPTIMALE
+              </Text>
+            </View>
+            <View style={styles.readinessCardBadge}>
+              <Text style={styles.readinessCardBadgeText}>
+                {user?.readinessScore ? `${user.readinessScore}%` : "88%"}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.readinessTitle}>Disponibilité & Forme</Text>
+
+          <Text style={styles.readinessInsightText}>
+            {isHeroRest
+              ? "Jour de récupération sanctuarisé. Tes muscles et articulations se régénèrent pour aborder tes prochaines séances avec un maximum de fraîcheur."
+              : isHeroDone
+                ? "Séance du jour validée ! Tes données Strava sont intégrées à ta charge Banister pour recalibrer ton niveau de forme."
+                : `Score de fraîcheur à ${user?.readinessScore || 88}%. Tes indicateurs physiologiques sont au vert pour réaliser ta séance d'aujourd'hui.`}
           </Text>
-        </View>
-      </Card>
+
+          {lastCompletedSession && (
+            <TouchableOpacity
+              style={styles.rpeSummaryRow}
+              activeOpacity={0.7}
+              onPress={() => setShowRpeInput(true)}
+            >
+              <View style={styles.rpeSummaryLeft}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={16}
+                  color={Colors.successText}
+                />
+                <Text style={styles.rpeSummaryText} numberOfLines={1}>
+                  Dernière séance :{" "}
+                  {lastCompletedSession.actualDistanceKm
+                    ? `${lastCompletedSession.actualDistanceKm.toFixed(1).replace(".", ",")} km`
+                    : "6,7 km"}{" "}
+                  ({lastCompletedSession.title}) • RPE {currentRpe}/10
+                </Text>
+              </View>
+              <Text style={styles.rpeEditBtn}>Modifier</Text>
+            </TouchableOpacity>
+          )}
+        </Card>
+      )}
 
       {/* 4. Running Club Snippet Card */}
       <TouchableOpacity
@@ -613,6 +745,90 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     lineHeight: 20,
     fontWeight: "500",
+  },
+
+  // 3b. Readiness & Banister Form Card
+  readinessCard: {
+    marginBottom: Spacing.xl,
+    backgroundColor: Colors.card,
+  },
+  readinessHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
+  },
+  readinessHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  readinessPulseBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.primaryMuted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  readinessSubtitle: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.textSecondary,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+  },
+  readinessCardBadge: {
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  readinessCardBadgeText: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: "800",
+    color: "#059669",
+  },
+  readinessTitle: {
+    fontSize: Typography.sizes.xl,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xs,
+  },
+  readinessInsightText: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: Spacing.md,
+  },
+  rpeSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Colors.background,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+  },
+  rpeSummaryLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+  },
+  rpeSummaryText: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.textPrimary,
+    fontWeight: "600",
+  },
+  rpeEditBtn: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.primary,
+    fontWeight: "700",
+    marginLeft: 8,
   },
 
   // 4. Running Club Snippet Card

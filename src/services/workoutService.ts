@@ -1,6 +1,13 @@
 import { WorkoutSession, RpeCheckIn, MultiWeekPlanResponse } from "../types";
 import { apiClient } from "./apiClient";
-import { WORKOUTS_BY_WEEK, generateWorkoutForDate } from "../mock/mockData";
+import {
+  WORKOUTS_BY_WEEK,
+  generateWorkoutForDate,
+  registerWorkouts,
+  getWorkoutsForWeekSync,
+  getWorkoutsForMonthSync,
+  getWorkoutByDateKeySync,
+} from "../mock/mockData";
 import { getDaysOfWeek, formatDateKey, getMonthGrid } from "../utils/dateUtils";
 
 export const workoutService = {
@@ -18,7 +25,7 @@ export const workoutService = {
     const weeksToGenerate = params?.weeksToGenerate ?? 4;
 
     try {
-      return await apiClient.post<MultiWeekPlanResponse>(
+      const res = await apiClient.post<MultiWeekPlanResponse>(
         "workouts/generate-plan",
         {
           startWeekNumber,
@@ -26,6 +33,10 @@ export const workoutService = {
           weeksToGenerate,
         },
       );
+      if (res && Array.isArray(res.workouts) && res.workouts.length > 0) {
+        registerWorkouts(res.workouts);
+      }
+      return res;
     } catch (error) {
       console.warn(
         "[Riles API Fallback] Impossible de contacter le backend NestJS (POST /workouts/generate-plan). Utilisation du générateur local :",
@@ -36,23 +47,25 @@ export const workoutService = {
         const wk = startWeekNumber + w;
         const days = getDaysOfWeek(year, wk);
         days.forEach((day) => {
-          const predefined = WORKOUTS_BY_WEEK[wk]?.[day.dayNumber];
+          const predefined =
+            getWorkoutByDateKeySync(day.dateKey) ||
+            WORKOUTS_BY_WEEK[wk]?.[day.dayNumber];
           if (predefined) {
             workouts.push(predefined);
           } else {
-            workouts.push(
-              generateWorkoutForDate(
-                day.dateKey,
-                day.dayName,
-                day.dayNumber,
-                day.month,
-                day.year,
-                day.fullDateLabel,
-              ),
+            const gen = generateWorkoutForDate(
+              day.dateKey,
+              day.dayName,
+              day.dayNumber,
+              day.month,
+              day.year,
+              day.fullDateLabel,
             );
+            workouts.push(gen);
           }
         });
       }
+      registerWorkouts(workouts);
       return {
         success: true,
         planSummary: `Ton plan de ${weeksToGenerate} semaines (Semaines ${startWeekNumber} à ${startWeekNumber + weeksToGenerate - 1}) a été généré sur mesure par l'IA en respectant tes règles de vie et tes allures réelles.`,
@@ -65,7 +78,7 @@ export const workoutService = {
 
   /**
    * Récupère les séances d'une semaine spécifique depuis l'API NestJS.
-   * Si aucune séance n'est prévue pour cette semaine, renvoie un tableau vide [] (aucune génération à la volée).
+   * Si le backend n'est pas joignable ou retourne une liste vide, s'appuie sur le registre local.
    */
   async getWeekWorkouts(
     weekNumber = 42,
@@ -75,34 +88,22 @@ export const workoutService = {
       const data = await apiClient.get<WorkoutSession[]>("workouts/week", {
         params: { week: weekNumber, year },
       });
-      if (Array.isArray(data)) {
+      if (Array.isArray(data) && data.length > 0) {
+        registerWorkouts(data);
         return data;
       }
-      return [];
+      return getWorkoutsForWeekSync(weekNumber, year);
     } catch (error) {
       console.warn(
-        `[Riles API Fallback] Impossible de contacter le backend NestJS (GET /workouts/week?week=${weekNumber}&year=${year}). Utilisation des séances locales existantes :`,
+        `[Riles API Fallback] GET /workouts/week?week=${weekNumber}&year=${year}. Utilisation du registre local :`,
         error,
       );
-      const weekData = WORKOUTS_BY_WEEK[weekNumber];
-      if (!weekData) {
-        return [];
-      }
-      const days = getDaysOfWeek(year, weekNumber);
-      const result: WorkoutSession[] = [];
-      days.forEach((day) => {
-        const predefined = weekData[day.dayNumber];
-        if (predefined) {
-          result.push(predefined);
-        }
-      });
-      return result;
+      return getWorkoutsForWeekSync(weekNumber, year);
     }
   },
 
   /**
    * Récupère toutes les séances du mois sous forme de Record<dateKey, WorkoutSession>.
-   * Aucune séance n'est générée à la volée si le mois/jour n'a rien de prévu.
    */
   async getMonthWorkouts(
     month = 9,
@@ -115,25 +116,17 @@ export const workoutService = {
           params: { month, year },
         },
       );
-      if (data && typeof data === "object") {
+      if (data && typeof data === "object" && Object.keys(data).length > 0) {
+        registerWorkouts(Object.values(data));
         return data;
       }
-      return {};
+      return getWorkoutsForMonthSync(month, year);
     } catch (error) {
       console.warn(
-        `[Riles API Fallback] Impossible de contacter le backend NestJS (GET /workouts/month?month=${month}&year=${year}). Utilisation des séances locales existantes :`,
+        `[Riles API Fallback] GET /workouts/month?month=${month}&year=${year}. Utilisation du registre local :`,
         error,
       );
-      const grid = getMonthGrid(year, month);
-      const result: Record<string, WorkoutSession> = {};
-      grid.days.forEach((dayCell) => {
-        const predefined =
-          WORKOUTS_BY_WEEK[dayCell.weekNumber]?.[dayCell.dayNumber];
-        if (predefined) {
-          result[dayCell.dateKey] = predefined;
-        }
-      });
-      return result;
+      return getWorkoutsForMonthSync(month, year);
     }
   },
 
@@ -142,13 +135,11 @@ export const workoutService = {
    */
   async getWorkoutByDateKey(dateKey: string): Promise<WorkoutSession | null> {
     try {
-      return await apiClient.get<WorkoutSession>(`workouts/${dateKey}`);
+      const res = await apiClient.get<WorkoutSession>(`workouts/${dateKey}`);
+      if (res) return res;
+      return getWorkoutByDateKeySync(dateKey) || null;
     } catch (error) {
-      console.warn(
-        `[Riles API Fallback] Impossible de contacter le backend NestJS (GET /workouts/${dateKey}).`,
-        error,
-      );
-      return null;
+      return getWorkoutByDateKeySync(dateKey) || null;
     }
   },
 
@@ -253,6 +244,20 @@ export const workoutService = {
         error,
       );
       throw error;
+    }
+  },
+
+  /**
+   * Synchronisation incrémentale à la demande des activités récentes Strava
+   */
+  async syncRecentActivities(daysLookback = 7): Promise<any> {
+    try {
+      return await apiClient.post("webhooks/strava/sync-recent", {
+        daysLookback,
+      });
+    } catch (error) {
+      console.warn("Strava incremental sync warning:", error);
+      return null;
     }
   },
 };

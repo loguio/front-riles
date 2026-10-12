@@ -119,12 +119,35 @@ export default function CalendarScreen() {
     await setActiveMonth(next.month, next.year);
   };
 
-  const handleWeekChange = async (newWeek: number) => {
+  const handleWeekChange = async (newWeek: number, newYear = activeYear) => {
     try {
       setIsChangingWeek(true);
-      await setActiveWeek(newWeek);
+      await setActiveWeek(newWeek, newYear);
     } finally {
       setIsChangingWeek(false);
+    }
+  };
+
+  const getMaxWeeksInYear = (year: number) => {
+    return getWeekNumber(new Date(year, 11, 28));
+  };
+
+  const handlePrevWeek = async () => {
+    if (activeWeek <= 1) {
+      const prevYear = activeYear - 1;
+      const prevYearMaxWeeks = getMaxWeeksInYear(prevYear);
+      await handleWeekChange(prevYearMaxWeeks, prevYear);
+    } else {
+      await handleWeekChange(activeWeek - 1, activeYear);
+    }
+  };
+
+  const handleNextWeek = async () => {
+    const maxWeeks = getMaxWeeksInYear(activeYear);
+    if (activeWeek >= maxWeeks) {
+      await handleWeekChange(1, activeYear + 1);
+    } else {
+      await handleWeekChange(activeWeek + 1, activeYear);
     }
   };
 
@@ -203,7 +226,7 @@ export default function CalendarScreen() {
               style={styles.arrowBtn}
               activeOpacity={0.7}
               disabled={isChangingWeek}
-              onPress={() => handleWeekChange(Math.max(activeWeek - 1, 1))}
+              onPress={handlePrevWeek}
             >
               <Feather
                 name="chevron-left"
@@ -215,7 +238,7 @@ export default function CalendarScreen() {
               style={styles.arrowBtn}
               activeOpacity={0.7}
               disabled={isChangingWeek}
-              onPress={() => handleWeekChange(Math.min(activeWeek + 1, 52))}
+              onPress={handleNextWeek}
             >
               <Feather
                 name="chevron-right"
