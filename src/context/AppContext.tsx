@@ -4,6 +4,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 import {
   UserProfile,
@@ -44,6 +45,7 @@ interface AppContextType {
   chatMessages: ChatMessage[];
   quickPrompts: QuickPrompt[];
   isCoachTyping: boolean;
+  chatErrorMessage: string | null;
   communityRuns: CommunityRun[];
   challenge: MonthlyChallenge | null;
   activeWeek: number;
@@ -61,6 +63,7 @@ interface AppContextType {
   setActiveMonth: (month: number, year?: number) => Promise<void>;
   submitRpe: (rating: number) => Promise<RpeCheckIn>;
   sendChatMessage: (text: string, context?: CoachContext) => Promise<void>;
+  resendLastChatMessage: () => Promise<void>;
   applyCoachAction: (
     actionDetails: string,
     dayNumber?: number,
@@ -104,6 +107,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [quickPrompts, setQuickPrompts] = useState<QuickPrompt[]>([]);
   const [isCoachTyping, setIsCoachTyping] = useState<boolean>(false);
+  const [chatErrorMessage, setChatErrorMessage] = useState<string | null>(null);
+  const pendingChatTextRef = useRef<string | null>(null);
   const [communityRuns, setCommunityRuns] = useState<CommunityRun[]>([]);
   const [challenge, setChallenge] = useState<MonthlyChallenge | null>(null);
   const [activeWeek, setActiveWeekState] = useState<number>(currentWeek);
@@ -344,6 +349,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
       setChatMessages((prev) => [...prev, tempUserMsg]);
       setIsCoachTyping(true);
+      setChatErrorMessage(null);
 
       try {
         const { coachReply } = await chatService.sendMessage(text, {
@@ -354,6 +360,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           ...context,
         });
         setChatMessages((prev) => [...prev, coachReply]);
+        pendingChatTextRef.current = null;
 
         // Si le coach IA a automatiquement reformulé et enregistré une règle de vie à l'envoi du message, on synchronise le profil localement avec anti-doublon
         if (
@@ -400,8 +407,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       } catch (err) {
         // RILES-015 : aucune réponse de coach fabriquée localement.
+        // On retire le message optimiste (non confirmé par le serveur) et on
+        // propose un renvoi explicite via le bandeau d'erreur du chat.
         console.error("Chat error:", err);
-        setErrorMessage(toUserFacingError(err));
+        setChatMessages((prev) => prev.filter((m) => m.id !== tempUserMsg.id));
+        pendingChatTextRef.current = text;
+        setChatErrorMessage(toUserFacingError(err));
       } finally {
         setIsCoachTyping(false);
       }
@@ -416,6 +427,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       selectedDateKey,
     ],
   );
+
+  // Renvoi du dernier message refusé par le serveur (bandeau d'erreur du chat)
+  const resendLastChatMessage = useCallback(async () => {
+    const pending = pendingChatTextRef.current;
+    if (!pending) return;
+    await sendChatMessage(pending);
+  }, [sendChatMessage]);
 
   // Génération du plan multi-semaines via le meilleur LLM (LLM_PRO_MODEL)
   const generateMultiWeekPlan = useCallback(
@@ -660,6 +678,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         chatMessages,
         quickPrompts,
         isCoachTyping,
+        chatErrorMessage,
         communityRuns,
         challenge,
         activeWeek,
@@ -675,6 +694,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         setActiveMonth,
         submitRpe,
         sendChatMessage,
+        resendLastChatMessage,
         applyCoachAction,
         generateMultiWeekPlan,
         toggleCommunityRun,

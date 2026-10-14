@@ -30,6 +30,15 @@ function collectSourceFiles(dir: string): string[] {
 }
 
 describe("mock honesty guards", () => {
+  it("the pre-scripted chat conversation fixture is gone (RILES-016)", () => {
+    const fixtureName = ["INITIAL", "CHAT", "MESSAGES"].join("_");
+    const offenders = collectSourceFiles(resolve(repoRoot, "src")).filter(
+      (file) => readFileSync(file, "utf8").includes(fixtureName),
+    );
+
+    expect(offenders).toEqual([]);
+  });
+
   it("no service module imports fixtures from src/mock/", () => {
     const servicesDir = resolve(repoRoot, "src/services");
     const offenders: string[] = [];

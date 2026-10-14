@@ -1,10 +1,4 @@
-import {
-  WorkoutSession,
-  ConnectedApp,
-  ChatMessage,
-  QuickPrompt,
-  StravaSixMonthsSummary,
-} from "../types";
+import { WorkoutSession, ConnectedApp, StravaSixMonthsSummary } from "../types";
 import { Colors } from "../constants/theme";
 
 export const DEFAULT_STRAVA_SIX_MONTHS_SUMMARY: StravaSixMonthsSummary = {
@@ -1845,47 +1839,9 @@ export function generateWorkoutForDate(
   }
 }
 
-export const INITIAL_CHAT_MESSAGES: ChatMessage[] = [
-  {
-    id: "m-1",
-    sender: "coach",
-    text: "Salut Marius ! Je suis ton coach Riles. J'analyse tes données de forme et tes ressentis en continu pour ajuster ton plan à ta vie réelle.",
-    timestamp: "18:15",
-  },
-  {
-    id: "m-2",
-    sender: "coach",
-    text: "Pour ta séance de ce soir (45 min Tempo & Seuil), comment te sens-tu au niveau musculaire et énergie ?",
-    timestamp: "18:16",
-  },
-];
-
-export const QUICK_PROMPTS: QuickPrompt[] = [
-  {
-    id: "qp-1",
-    label: "⚡ Trop fatigué ce soir",
-    message:
-      "Je suis assez fatigué après ma journée de travail, peux-tu alléger la séance de ce soir ?",
-  },
-  {
-    id: "qp-2",
-    label: "📅 Décaler à demain",
-    message:
-      "J'ai un imprévu ce soir, est-ce qu'on peut décaler le travail au seuil à demain ?",
-  },
-  {
-    id: "qp-3",
-    label: "🏃 Remplacer par 30 min cool",
-    message:
-      "Je préfère faire 30 minutes de footing très tranquille en Zone 2 aujourd'hui.",
-  },
-  {
-    id: "qp-4",
-    label: "🩹 Petite gêne au mollet",
-    message:
-      "Je ressens une légère raideur au mollet droit depuis hier, qu'est-ce que tu conseilles ?",
-  },
-];
+// RILES-016 : la conversation pré-scriptée et les suggestions locales ont
+// été supprimées — l'état vide du chat vient uniquement du backend
+// (cf. src/services/chatService.ts).
 
 // RILES-015 : les graines de la communauté ne sont plus importées depuis
 // src/mock/ par les services (voir src/services/communitySeed.ts) ;
