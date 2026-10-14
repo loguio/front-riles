@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,6 +21,7 @@ import {
 } from "../../src/constants/theme";
 import { Card } from "../../src/components/ui/Card";
 import { LanguageSelector } from "../../src/components/ui/LanguageSelector";
+import { ErrorState } from "../../src/components/ui/ErrorState";
 import { useApp } from "../../src/context/AppContext";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../src/services";
@@ -27,26 +29,11 @@ import { analytics } from "../../src/services";
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, resetOnboarding, refreshAllData } = useApp();
+  const { user, resetOnboarding, refreshAllData, isLoading, errorMessage } =
+    useApp();
   const { t } = useTranslation(["profile", "common"]);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
-
-  const goal = user?.activeGoal || {
-    title: "Semi-marathon de Paris",
-    target: "Passer sous les 2h",
-    raceDate: "17 mars 2025",
-    weeksRemaining: 6,
-    progressPercentage: 65,
-  };
-
-  const stats = user?.stats || {
-    activeWeeks: 12,
-    totalKm: 328,
-    completedRaces: 4,
-  };
-
-  const rules = user?.rules || [];
 
   const handleRestartOnboarding = async () => {
     analytics.trackEvent("profile_restart_onboarding_clicked");
@@ -59,6 +46,34 @@ export default function ProfileScreen() {
     await refreshAllData();
     setRefreshing(false);
   };
+
+  // RILES-015 : sans profil réel renvoyé par le serveur, aucune valeur
+  // d'exemple (objectif, kilométrages) n'est affichée — état d'erreur + retry.
+  if (!user) {
+    if (isLoading) {
+      return (
+        <View style={styles.errorScreen}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      );
+    }
+    return (
+      <View style={styles.errorScreen}>
+        <ErrorState
+          title="Profil indisponible"
+          message={
+            errorMessage ||
+            "Le serveur n'a pas répondu. Vérifie ta connexion puis réessaie."
+          }
+          onRetry={refreshAllData}
+        />
+      </View>
+    );
+  }
+
+  const goal = user.activeGoal;
+  const stats = user.stats;
+  const rules = user.rules;
 
   return (
     <ScrollView
@@ -84,7 +99,7 @@ export default function ProfileScreen() {
             {t("profile:header.section")}
           </Text>
           <Text style={styles.headerTitle}>
-            {t("profile:header.greeting", { name: user?.name || "Marius" })}
+            {t("profile:header.greeting", { name: user.name || "Athlète" })}
           </Text>
           <Text style={styles.headerBio}>{t("profile:header.bio")}</Text>
         </View>
@@ -249,6 +264,10 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  errorScreen: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   screen: {
     flex: 1,
     backgroundColor: Colors.background,

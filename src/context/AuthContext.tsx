@@ -15,7 +15,7 @@ import {
   signInWithPasswordFlow,
   signUpWithPasswordFlow,
 } from "./authFlow";
-import { setAuthToken, setUserId, API_CONFIG } from "../config/api";
+import { setAuthToken, setUserId } from "../config/api";
 import { analytics } from "../services/analytics";
 
 // Assure la complétion des sessions OAuth web/mobile
@@ -127,8 +127,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         provider: nextState.user.app_metadata?.provider || "email",
       });
     } else {
+      // RILES-017 : sans session, aucune identité de repli — les appels API
+      // échouent tant que l'utilisateur n'est pas connecté.
       setAuthToken(null);
-      setUserId(API_CONFIG.defaultUserId);
+      setUserId(null);
       analytics.resetUser();
     }
   }, []);

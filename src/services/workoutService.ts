@@ -1,19 +1,15 @@
 import { WorkoutSession, RpeCheckIn, MultiWeekPlanResponse } from "../types";
-import { apiClient } from "./apiClient";
-import {
-  WORKOUTS_BY_WEEK,
-  generateWorkoutForDate,
-  registerWorkouts,
-  getWorkoutsForWeekSync,
-  getWorkoutsForMonthSync,
-  getWorkoutByDateKeySync,
-} from "../mock/mockData";
-import { getDaysOfWeek, formatDateKey, getMonthGrid } from "../utils/dateUtils";
+import { apiClient, ApiError } from "./apiClient";
+import { formatDateKey } from "../utils/dateUtils";
 
+/**
+ * RILES-015 : aucune génération locale de plan, aucun feedback RPE fabriqué.
+ * Chaque appel échoue explicitement (throw) quand le backend NestJS est
+ * indisponible — l'écran affiche alors un état d'erreur avec « Réessayer ».
+ */
 export const workoutService = {
   /**
-   * Génère le plan multi-semaines via le meilleur LLM (LLM_PRO_MODEL) en respectant
-   * tout le contexte athlète (allures réelles, charge Banister, séances passées) et les LifeRules
+   * Génère le plan multi-semaines via le backend (LLM_PRO_MODEL)
    */
   async generateMultiWeekPlan(params?: {
     startWeekNumber?: number;
@@ -24,124 +20,65 @@ export const workoutService = {
     const year = params?.year ?? 2026;
     const weeksToGenerate = params?.weeksToGenerate ?? 4;
 
-    try {
-      const res = await apiClient.post<MultiWeekPlanResponse>(
-        "workouts/generate-plan",
-        {
-          startWeekNumber,
-          year,
-          weeksToGenerate,
-        },
-      );
-      if (res && Array.isArray(res.workouts) && res.workouts.length > 0) {
-        registerWorkouts(res.workouts);
-      }
-      return res;
-    } catch (error) {
-      console.warn(
-        "[Riles API Fallback] Impossible de contacter le backend NestJS (POST /workouts/generate-plan). Utilisation du générateur local :",
-        error,
-      );
-      const workouts: WorkoutSession[] = [];
-      for (let w = 0; w < weeksToGenerate; w++) {
-        const wk = startWeekNumber + w;
-        const days = getDaysOfWeek(year, wk);
-        days.forEach((day) => {
-          const predefined =
-            getWorkoutByDateKeySync(day.dateKey) ||
-            WORKOUTS_BY_WEEK[wk]?.[day.dayNumber];
-          if (predefined) {
-            workouts.push(predefined);
-          } else {
-            const gen = generateWorkoutForDate(
-              day.dateKey,
-              day.dayName,
-              day.dayNumber,
-              day.month,
-              day.year,
-              day.fullDateLabel,
-            );
-            workouts.push(gen);
-          }
-        });
-      }
-      registerWorkouts(workouts);
-      return {
-        success: true,
-        planSummary: `Ton plan de ${weeksToGenerate} semaines (Semaines ${startWeekNumber} à ${startWeekNumber + weeksToGenerate - 1}) a été généré sur mesure par l'IA en respectant tes règles de vie et tes allures réelles.`,
-        weeksGenerated: weeksToGenerate,
-        modelUsed: "riles-pro-engine",
-        workouts,
-      };
-    }
+    return apiClient.post<MultiWeekPlanResponse>("workouts/generate-plan", {
+      startWeekNumber,
+      year,
+      weeksToGenerate,
+    });
   },
 
   /**
-   * Récupère les séances d'une semaine spécifique depuis l'API NestJS (100% données réelles).
+   * Récupère les séances d'une semaine spécifique depuis l'API NestJS.
+   * Un échec ne renvoie jamais un tableau vide : il est signalé.
    */
   async getWeekWorkouts(
     weekNumber = 42,
     year = 2026,
   ): Promise<WorkoutSession[]> {
-    try {
-      const data = await apiClient.get<WorkoutSession[]>("workouts/week", {
-        params: { week: weekNumber, year },
-      });
-      if (Array.isArray(data)) {
-        if (data.length > 0) {
-          registerWorkouts(data);
-        }
-        return data;
-      }
-      return [];
-    } catch (error) {
-      console.warn(
-        `[Riles API] GET /workouts/week?week=${weekNumber}&year=${year} error:`,
-        error,
+    const data = await apiClient.get<WorkoutSession[]>("workouts/week", {
+      params: { week: weekNumber, year },
+    });
+    if (!Array.isArray(data)) {
+      throw new ApiError(
+        `Réponse invalide pour les séances de la semaine ${weekNumber}`,
+        502,
       );
-      return [];
     }
+    return data;
   },
 
   /**
-   * Récupère toutes les séances du mois sous forme de Record<dateKey, WorkoutSession> (100% données réelles).
+   * Récupère toutes les séances du mois sous forme de Record<dateKey, WorkoutSession>
    */
   async getMonthWorkouts(
     month = 9,
     year = 2026,
   ): Promise<Record<string, WorkoutSession>> {
-    try {
-      const data = await apiClient.get<Record<string, WorkoutSession>>(
-        "workouts/month",
-        {
-          params: { month, year },
-        },
-      );
-      if (data && typeof data === "object") {
-        if (Object.keys(data).length > 0) {
-          registerWorkouts(Object.values(data));
-        }
-        return data;
-      }
-      return {};
-    } catch (error) {
-      console.warn(
-        `[Riles API] GET /workouts/month?month=${month}&year=${year} error:`,
-        error,
-      );
-      return {};
+    const data = await apiClient.get<Record<string, WorkoutSession>>(
+      "workouts/month",
+      {
+        params: { month, year },
+      },
+    );
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      throw new ApiError(`Réponse invalide pour le mois ${month}`, 502);
     }
+    return data;
   },
 
   /**
-   * Récupère le détail d'une séance par sa dateKey (YYYY-MM-DD) ou son ID
+   * Récupère le détail d'une séance par sa dateKey (YYYY-MM-DD).
+   * 404 => aucun séance prévue (état vide) ; tout autre échec est signalé.
    */
   async getWorkoutByDateKey(dateKey: string): Promise<WorkoutSession | null> {
     try {
       const res = await apiClient.get<WorkoutSession>(`workouts/${dateKey}`);
-      return res || null;
+      return res ?? null;
     } catch (error) {
-      return null;
+      if (error instanceof ApiError && error.status === 404) {
+        return null;
+      }
+      throw error;
     }
   },
 
@@ -164,114 +101,49 @@ export const workoutService = {
     identifier: string | number,
     updates: Partial<WorkoutSession>,
   ): Promise<WorkoutSession> {
-    try {
-      return await apiClient.patch<WorkoutSession>(
-        `workouts/${identifier}`,
-        updates,
-      );
-    } catch (error) {
-      console.warn(
-        `[Riles API Fallback] Impossible de contacter le backend NestJS (PATCH /workouts/${identifier}).`,
-        error,
-      );
-      throw error;
-    }
+    return apiClient.patch<WorkoutSession>(`workouts/${identifier}`, updates);
   },
 
   /**
-   * Soumet une note d'effort RPE (1-10) et reçoit le feedback de préservation IA
+   * Soumet une note d'effort RPE (1-10) et reçoit le feedback du backend.
+   * Plus aucun retour d'« IA » fabriqué localement.
    */
   async submitRpeCheckIn(
     rating: number,
     workoutId?: string,
   ): Promise<RpeCheckIn> {
-    try {
-      return await apiClient.post<RpeCheckIn>("workouts/rpe", {
-        rating,
-        workoutId,
-      });
-    } catch (error) {
-      console.warn(
-        "[Riles API Fallback] Impossible de contacter le backend NestJS (POST /workouts/rpe). Calcul local du feedback IA :",
-        error,
-      );
-      let feedbackLabel = "Modéré";
-      let aiPreservationMessage =
-        "L'IA a ajusté le seuil pour préserver tes mollets aujourd'hui.";
-
-      if (rating <= 3) {
-        feedbackLabel = "Très facile";
-        aiPreservationMessage =
-          "Parfait ! Ton niveau de forme est excellent, nous maintenons les allures cibles.";
-      } else if (rating <= 6) {
-        feedbackLabel = "Modéré";
-        aiPreservationMessage =
-          "L'IA a ajusté le seuil pour préserver tes mollets aujourd'hui.";
-      } else if (rating <= 8) {
-        feedbackLabel = "Difficile";
-        aiPreservationMessage =
-          "Séance intense détectée. L'IA a allégé le volume de demain pour optimiser ta récupération.";
-      } else {
-        feedbackLabel = "À fond";
-        aiPreservationMessage =
-          "Charge maximale atteinte. Un jour de repos actif a été automatiquement inséré.";
-      }
-
-      return {
-        rating,
-        feedbackLabel,
-        submittedAt: new Date().toISOString(),
-        aiPreservationMessage,
-      };
-    }
+    return apiClient.post<RpeCheckIn>("workouts/rpe", {
+      rating,
+      workoutId,
+    });
   },
 
   /**
-   * Adapte une séance avec une recommandation IA (alléger, décaler, footing cool, mollet)
+   * Adapte une séance avec une recommandation du backend
    */
   async adaptSessionWithAI(
     identifier: string | number,
     adaptationType: "lighten" | "postpone" | "easy_run" | "injury_care",
   ): Promise<WorkoutSession> {
-    try {
-      return await apiClient.post<WorkoutSession>(
-        `workouts/${identifier}/adapt`,
-        {
-          adaptationType,
-        },
-      );
-    } catch (error) {
-      console.warn(
-        `[Riles API Fallback] Impossible de contacter le backend NestJS (POST /workouts/${identifier}/adapt).`,
-        error,
-      );
-      throw error;
-    }
+    return apiClient.post<WorkoutSession>(`workouts/${identifier}/adapt`, {
+      adaptationType,
+    });
   },
 
   /**
-   * Synchronisation incrémentale à la demande des activités récentes Strava
+   * Synchronisation incrémentale à la demande des activités récentes Strava.
+   * Échec => throw (appelant : traitement explicite, aucune donnée fabriquée).
    */
   async syncRecentActivities(daysLookback = 7): Promise<any> {
-    try {
-      return await apiClient.post("webhooks/strava/sync-recent", {
-        daysLookback,
-      });
-    } catch (error) {
-      console.warn("Strava incremental sync warning:", error);
-      return null;
-    }
+    return apiClient.post("webhooks/strava/sync-recent", {
+      daysLookback,
+    });
   },
 
   /**
    * Récupère la roadmap complète en temps réel du plan de préparation
    */
   async getPlanRoadmap(): Promise<any> {
-    try {
-      return await apiClient.get("workouts/roadmap");
-    } catch (error) {
-      console.warn("[Riles API] GET /workouts/roadmap error:", error);
-      return null;
-    }
+    return apiClient.get("workouts/roadmap");
   },
 };

@@ -22,6 +22,7 @@ import { Card } from "../../src/components/ui/Card";
 import { Badge } from "../../src/components/ui/Badge";
 import { EffortSlider } from "../../src/components/ui/Slider";
 import { DashboardSkeleton } from "../../src/components/ui/DashboardSkeleton";
+import { ErrorState } from "../../src/components/ui/ErrorState";
 import { useApp } from "../../src/context/AppContext";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../src/services";
@@ -239,6 +240,23 @@ export default function HomeScreen() {
     return <DashboardSkeleton />;
   }
 
+  // RILES-015 : sans profil, pas de dashboard « décoré » — on affiche
+  // l'état d'erreur avec un bouton Réessayer (aucune donnée fabriquée).
+  if (!user) {
+    return (
+      <View style={styles.errorScreen}>
+        <ErrorState
+          title="Impossible de charger tes données"
+          message={
+            errorMessage ||
+            "Le serveur n'a pas répondu. Vérifie ta connexion puis réessaie."
+          }
+          onRetry={refreshAllData}
+        />
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       style={styles.screen}
@@ -260,8 +278,8 @@ export default function HomeScreen() {
       {errorMessage && (
         <View style={styles.errorBanner}>
           <Ionicons name="cloud-offline-outline" size={18} color="#B91C1C" />
-          <Text style={styles.errorText}>
-            Mode hors-ligne : données locales
+          <Text style={styles.errorText} numberOfLines={2}>
+            {errorMessage || "Erreur de chargement des données"}
           </Text>
           <TouchableOpacity onPress={refreshAllData} activeOpacity={0.7}>
             <Text style={styles.retryText}>Réessayer</Text>
@@ -918,6 +936,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   screen: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  errorScreen: {
     flex: 1,
     backgroundColor: Colors.background,
   },

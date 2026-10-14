@@ -23,6 +23,7 @@ import { Card } from "../../src/components/ui/Card";
 import { HeartRateZoneBar } from "../../src/components/calendar/HeartRateZoneBar";
 import { EffortStructure } from "../../src/components/calendar/EffortStructure";
 import { useApp } from "../../src/context/AppContext";
+import { ErrorBanner } from "../../src/components/ui/ErrorState";
 import {
   getDaysOfWeek,
   getMonthGrid,
@@ -50,6 +51,7 @@ export default function CalendarScreen() {
     setActiveWeek,
     setActiveMonth,
     refreshAllData,
+    errorMessage,
   } = useApp();
 
   const [isMonthExpanded, setIsMonthExpanded] = useState(false);
@@ -418,6 +420,11 @@ export default function CalendarScreen() {
         />
       }
     >
+      {/* RILES-015 : erreur de chargement visible + retry */}
+      {errorMessage ? (
+        <ErrorBanner message={errorMessage} onRetry={refreshAllData} />
+      ) : null}
+
       {/* 1. Header */}
       <View style={styles.header}>
         <View>

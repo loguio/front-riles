@@ -21,6 +21,8 @@ import {
 } from "../src/constants/theme";
 import { MessageBubble } from "../src/components/chat/MessageBubble";
 import { ChatInput } from "../src/components/chat/ChatInput";
+import { QuickSuggestions } from "../src/components/chat/QuickSuggestions";
+import { ErrorBanner } from "../src/components/ui/ErrorState";
 import { useApp } from "../src/context/AppContext";
 import { ChatSuggestedAction } from "../src/types";
 import { analytics } from "../src/services";
@@ -37,9 +39,12 @@ export default function ChatScreen() {
 
   const {
     chatMessages,
+    quickPrompts,
     isCoachTyping,
+    chatErrorMessage,
     selectedWorkout,
     sendChatMessage,
+    resendLastChatMessage,
     applyCoachAction,
   } = useApp();
 
@@ -213,6 +218,27 @@ export default function ChatScreen() {
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* RILES-016 : historique réellement vide => état vide + suggestions
+              provenant du backend (aucune conversation pré-scriptée). */}
+          {chatMessages.length === 0 && !isCoachTyping && (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyStateAvatar}>
+                <MaterialCommunityIcons
+                  name="run"
+                  size={22}
+                  color={Colors.primary}
+                />
+              </View>
+              <Text style={styles.emptyStateTitle}>
+                Aucune conversation pour le moment
+              </Text>
+              <Text style={styles.emptyStateText}>
+                Pose ta première question : le coach répond à partir de ton plan
+                et de tes séances réelles.
+              </Text>
+            </View>
+          )}
+
           {chatMessages.map((msg) => (
             <MessageBubble
               key={msg.id}
@@ -243,6 +269,26 @@ export default function ChatScreen() {
 
         {/* 4. Input Bar (sans boutons automatiques rigides : l'utilisateur écrit son message librement) */}
         <View style={{ paddingBottom: Math.max(insets.bottom, 12) }}>
+          {/* RILES-015/016 : échec d'envoi visible + renvoi explicite */}
+          {chatErrorMessage ? (
+            <View style={styles.chatErrorWrapper}>
+              <ErrorBanner
+                message={chatErrorMessage}
+                onRetry={resendLastChatMessage}
+                retryLabel="Renvoyer"
+              />
+            </View>
+          ) : null}
+
+          {/* Suggestions issues du backend, affichées sous l'état vide */}
+          {chatMessages.length === 0 && quickPrompts.length > 0 && (
+            <QuickSuggestions
+              prompts={quickPrompts}
+              onSelectPrompt={(prompt) => handleSend(prompt.message)}
+              disabled={isCoachTyping}
+            />
+          )}
+
           <ChatInput
             onSend={handleSend}
             disabled={isCoachTyping}
@@ -402,6 +448,39 @@ const styles = StyleSheet.create({
   },
   messagesScroll: {
     flex: 1,
+  },
+  emptyState: {
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: Spacing.xxl,
+    paddingHorizontal: Spacing.lg,
+  },
+  emptyStateAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.primaryMuted,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  emptyStateTitle: {
+    fontSize: Typography.sizes.md,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+    textAlign: "center",
+  },
+  emptyStateText: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  chatErrorWrapper: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.sm,
   },
   messagesContent: {
     paddingHorizontal: Spacing.xl,
