@@ -212,7 +212,8 @@ export default function PlanRoadmapScreen() {
                 Avancement de la préparation
               </Text>
               <Text style={styles.goalProgressPct}>
-                {goal.progressPercentage}% ({goal.weeksRemaining} sem. restantes)
+                {goal.progressPercentage}% ({goal.weeksRemaining} sem.
+                restantes)
               </Text>
             </View>
             <View style={styles.goalProgressTrack}>
@@ -231,7 +232,9 @@ export default function PlanRoadmapScreen() {
           <View style={styles.goalStatsCartouche}>
             <View style={styles.goalStatCol}>
               <Text style={styles.goalStatLabel}>VOLUME TOTAL</Text>
-              <Text style={styles.goalStatValue}>{stats.totalPlannedKm} km</Text>
+              <Text style={styles.goalStatValue}>
+                {stats.totalPlannedKm} km
+              </Text>
             </View>
             <View style={styles.goalStatDivider} />
             <View style={styles.goalStatCol}>
@@ -313,7 +316,11 @@ export default function PlanRoadmapScreen() {
                     ]}
                   >
                     {isCompleted ? (
-                      <Feather name="check" size={14} color={Colors.textWhite} />
+                      <Feather
+                        name="check"
+                        size={14}
+                        color={Colors.textWhite}
+                      />
                     ) : (
                       <Text
                         style={[

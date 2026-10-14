@@ -5,11 +5,7 @@ export interface SuggestedActionRuleData {
 }
 
 export interface ChatSuggestedAction {
-  type:
-    | "adjust_workout"
-    | "reschedule"
-    | "reduce_intensity"
-    | "add_life_rule";
+  type: "adjust_workout" | "reschedule" | "reduce_intensity" | "add_life_rule";
   label: string;
   applied: boolean;
   workoutId?: string;

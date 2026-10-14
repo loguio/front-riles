@@ -1568,7 +1568,9 @@ export function registerWorkouts(sessions: WorkoutSession[]) {
   sessions.forEach(registerWorkout);
 }
 
-export function getWorkoutByDateKeySync(dateKey: string): WorkoutSession | undefined {
+export function getWorkoutByDateKeySync(
+  dateKey: string,
+): WorkoutSession | undefined {
   return REGISTERED_WORKOUTS_BY_DATE[dateKey];
 }
 
@@ -1585,7 +1587,9 @@ export function getWorkoutsForMonthSync(
   year = 2026,
 ): Record<string, WorkoutSession> {
   const result: Record<string, WorkoutSession> = {};
-  for (const [dateKey, session] of Object.entries(REGISTERED_WORKOUTS_BY_DATE)) {
+  for (const [dateKey, session] of Object.entries(
+    REGISTERED_WORKOUTS_BY_DATE,
+  )) {
     const [y, m] = dateKey.split("-").map(Number);
     if (y === year && m - 1 === month) {
       result[dateKey] = session;

@@ -24,7 +24,11 @@ import {
   userService,
   communityService,
 } from "../services";
-import { formatDateKey, getWeekNumber, getDaysOfWeek } from "../utils/dateUtils";
+import {
+  formatDateKey,
+  getWeekNumber,
+  getDaysOfWeek,
+} from "../utils/dateUtils";
 
 interface AppContextType {
   // State
@@ -450,7 +454,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           };
 
           const cleanTitle = (ruleToCreate.title || "").trim().toLowerCase();
-          const cleanDesc = (ruleToCreate.description || "").trim().toLowerCase();
+          const cleanDesc = (ruleToCreate.description || "")
+            .trim()
+            .toLowerCase();
           const alreadyExists = (user?.rules || []).some((r) => {
             const rTitle = (r.title || "").trim().toLowerCase();
             const rDesc = (r.description || "").trim().toLowerCase();

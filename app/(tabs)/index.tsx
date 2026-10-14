@@ -202,7 +202,7 @@ export default function HomeScreen() {
       workouts.find((w) => w.dateKey === d.dateKey),
   );
   const weekDoneKm = currentWeekSessions.reduce((sum, w) => {
-    let dayKm = isRunningSession(w) ? (w?.actualDistanceKm || 0) : 0;
+    let dayKm = isRunningSession(w) ? w?.actualDistanceKm || 0 : 0;
     if (Array.isArray(w?.secondaryActivities)) {
       for (const sec of w.secondaryActivities) {
         if (sec.sportType === "running" && !isCommuteWorkout(sec)) {
@@ -350,10 +350,7 @@ export default function HomeScreen() {
             return (
               <TouchableOpacity
                 key={day.dateKey}
-                style={[
-                  styles.miniDayPill,
-                  isToday && styles.miniDayPillToday,
-                ]}
+                style={[styles.miniDayPill, isToday && styles.miniDayPillToday]}
                 activeOpacity={0.75}
                 onPress={() => handleOpenDayInCalendar(day.dateKey)}
               >
@@ -370,7 +367,10 @@ export default function HomeScreen() {
                     styles.miniDayStatusCircle,
                     isDone && styles.miniDayStatusDone,
                     isToday && !isDone && styles.miniDayStatusToday,
-                    !isDone && !isToday && !isRest && styles.miniDayStatusPlanned,
+                    !isDone &&
+                      !isToday &&
+                      !isRest &&
+                      styles.miniDayStatusPlanned,
                   ]}
                 >
                   {isDone ? (
@@ -457,15 +457,13 @@ export default function HomeScreen() {
                     {nextUpcomingSession.dayName?.toUpperCase()}{" "}
                     {nextUpcomingSession.dayNumber}
                   </Text>
-                  <Text
-                    style={styles.heroNextWorkoutTitle}
-                    numberOfLines={1}
-                  >
+                  <Text style={styles.heroNextWorkoutTitle} numberOfLines={1}>
                     {nextUpcomingSession.title}
                   </Text>
                   <Text style={styles.heroNextWorkoutMeta}>
-                    {nextUpcomingSession.distance} ({nextUpcomingSession.duration}
-                    ) • Allure cible {nextUpcomingSession.targetPace || "Z2"}
+                    {nextUpcomingSession.distance} (
+                    {nextUpcomingSession.duration}) • Allure cible{" "}
+                    {nextUpcomingSession.targetPace || "Z2"}
                   </Text>
                 </View>
                 <Feather
@@ -594,20 +592,22 @@ export default function HomeScreen() {
                       DÉROULÉ DE LA SÉANCE
                     </Text>
                     <View style={styles.heroBlocksList}>
-                      {heroEffortBlocks.slice(0, 4).map((b: any, idx: number) => (
-                        <View key={idx} style={styles.heroBlockItem}>
-                          <View style={styles.heroBlockDot} />
-                          <Text
-                            style={styles.heroBlockTitleText}
-                            numberOfLines={1}
-                          >
-                            {b.title}
-                          </Text>
-                          <Text style={styles.heroBlockDurText}>
-                            {b.durationLabel}
-                          </Text>
-                        </View>
-                      ))}
+                      {heroEffortBlocks
+                        .slice(0, 4)
+                        .map((b: any, idx: number) => (
+                          <View key={idx} style={styles.heroBlockItem}>
+                            <View style={styles.heroBlockDot} />
+                            <Text
+                              style={styles.heroBlockTitleText}
+                              numberOfLines={1}
+                            >
+                              {b.title}
+                            </Text>
+                            <Text style={styles.heroBlockDurText}>
+                              {b.durationLabel}
+                            </Text>
+                          </View>
+                        ))}
                     </View>
                   </View>
                 )}
@@ -843,9 +843,9 @@ export default function HomeScreen() {
               <View style={styles.roadmapPaceChip}>
                 <Text style={styles.roadmapPaceChipLabel}>Z2</Text>
                 <Text style={styles.roadmapPaceChipVal}>
-                  {user.stravaSixMonthsSummary.estimatedPaces.easyPaceZ2?.split(
-                    "–",
-                  )[0]?.trim() ||
+                  {user.stravaSixMonthsSummary.estimatedPaces.easyPaceZ2
+                    ?.split("–")[0]
+                    ?.trim() ||
                     user.stravaSixMonthsSummary.estimatedPaces.easyPaceZ2 ||
                     "—"}
                 </Text>
