@@ -225,7 +225,11 @@ export default function ChatScreen() {
           {isCoachTyping && (
             <View style={styles.typingContainer}>
               <View style={styles.coachTypingAvatar}>
-                <MaterialCommunityIcons name="run" size={13} color={Colors.textWhite} />
+                <MaterialCommunityIcons
+                  name="run"
+                  size={13}
+                  color={Colors.textWhite}
+                />
               </View>
               <View style={styles.typingBubble}>
                 <ActivityIndicator size="small" color={Colors.primary} />

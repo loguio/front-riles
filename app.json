@@ -22,11 +22,7 @@
       "bundler": "metro",
       "output": "static"
     },
-    "plugins": [
-      "expo-router",
-      "expo-asset",
-      "expo-font"
-    ],
+    "plugins": ["expo-router", "expo-asset", "expo-font"],
     "scheme": "riles",
     "experiments": {
       "typedRoutes": true

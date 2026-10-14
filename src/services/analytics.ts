@@ -54,7 +54,10 @@ export const analytics = {
       });
 
       if (__DEV__) {
-        console.log(`[Analytics] 📱 Écran visité : ${sanitizedName}`, properties || "");
+        console.log(
+          `[Analytics] 📱 Écran visité : ${sanitizedName}`,
+          properties || "",
+        );
       }
     } catch (err) {
       console.warn("[Analytics] Erreur lors du trackScreen :", err);
@@ -75,7 +78,10 @@ export const analytics = {
       });
 
       if (__DEV__) {
-        console.log(`[Analytics] ⚡ Événement : ${eventName}`, properties || "");
+        console.log(
+          `[Analytics] ⚡ Événement : ${eventName}`,
+          properties || "",
+        );
       }
     } catch (err) {
       console.warn("[Analytics] Erreur lors du trackEvent :", err);
@@ -95,7 +101,10 @@ export const analytics = {
       });
 
       if (__DEV__) {
-        console.log(`[Analytics] 👤 Utilisateur identifié : ${userId}`, traits || "");
+        console.log(
+          `[Analytics] 👤 Utilisateur identifié : ${userId}`,
+          traits || "",
+        );
       }
     } catch (err) {
       console.warn("[Analytics] Erreur lors du identifyUser :", err);
@@ -110,7 +119,9 @@ export const analytics = {
     try {
       posthogClient.reset();
       if (__DEV__) {
-        console.log("[Analytics] 🔒 Identité utilisateur réinitialisée (déconnexion)");
+        console.log(
+          "[Analytics] 🔒 Identité utilisateur réinitialisée (déconnexion)",
+        );
       }
     } catch (err) {
       console.warn("[Analytics] Erreur lors du resetUser :", err);

@@ -35,7 +35,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       {/* Coach avatar icon */}
       {!isUser && (
         <View style={styles.coachAvatarCircle}>
-          <MaterialCommunityIcons name="run" size={15} color={Colors.textWhite} />
+          <MaterialCommunityIcons
+            name="run"
+            size={15}
+            color={Colors.textWhite}
+          />
         </View>
       )}
 

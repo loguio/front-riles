@@ -210,8 +210,15 @@ export default function OnboardingScreen() {
       return;
     }
 
-    if (session && step === 1 && Platform.OS === "web" && typeof window !== "undefined") {
-      const pendingOAuth = window.sessionStorage?.getItem("riles_oauth_pending");
+    if (
+      session &&
+      step === 1 &&
+      Platform.OS === "web" &&
+      typeof window !== "undefined"
+    ) {
+      const pendingOAuth = window.sessionStorage?.getItem(
+        "riles_oauth_pending",
+      );
       const hasAuthCallbackHash =
         window.location.hash.includes("access_token") ||
         window.location.search.includes("code=");
@@ -714,9 +721,7 @@ export default function OnboardingScreen() {
                   ]}
                 />
               </View>
-              <Text style={styles.cuteProgressPercent}>
-                {displayProgress}%
-              </Text>
+              <Text style={styles.cuteProgressPercent}>{displayProgress}%</Text>
             </View>
 
             {/* Message dynamique rotatif (change 2-3 fois) */}
@@ -743,13 +748,18 @@ export default function OnboardingScreen() {
           <View style={styles.reviewHeader}>
             <View style={styles.reviewBadge}>
               <Feather name="calendar" size={14} color={Colors.primary} />
-              <Text style={styles.reviewBadgeText}>TON PLAN DE PRÉPARATION</Text>
+              <Text style={styles.reviewBadgeText}>
+                TON PLAN DE PRÉPARATION
+              </Text>
             </View>
             <Text style={styles.reviewTitle}>
-              {generatedPlanData?.weeksGenerated || 12} semaines vers ton objectif
+              {generatedPlanData?.weeksGenerated || 12} semaines vers ton
+              objectif
             </Text>
             <Text style={styles.reviewSubtitle}>
-              {goalAnalysis?.extractedGoal?.title || goalText || "Course à pied"}
+              {goalAnalysis?.extractedGoal?.title ||
+                goalText ||
+                "Course à pied"}
               {generatedPlanData?.targetRaceDate
                 ? ` • Échéance : ${generatedPlanData.targetRaceDate}`
                 : " • Plan sur 3 mois (12 semaines)"}
@@ -797,7 +807,8 @@ export default function OnboardingScreen() {
                   {
                     name: "Phase 1 : Développement Foncier & Régularité",
                     weeksRangeLabel: "Semaines 1 à 4",
-                    focus: "Consolidation de la base aérobie sans fatigue excessive",
+                    focus:
+                      "Consolidation de la base aérobie sans fatigue excessive",
                     weekType: "Endurance fondamentale & Volume progressif",
                     avgKm: Math.round(
                       (stravaSummary?.recent4WeeksAvgKm || 28) * 0.95,
@@ -807,7 +818,8 @@ export default function OnboardingScreen() {
                   {
                     name: "Phase 2 : Développement Spécifique & Seuils",
                     weeksRangeLabel: "Semaines 5 à 8",
-                    focus: "Augmentation de l'allure critique et soutien au seuil",
+                    focus:
+                      "Augmentation de l'allure critique et soutien au seuil",
                     weekType: "Fractions tempo & Allure cible",
                     avgKm: Math.round(
                       (stravaSummary?.recent4WeeksAvgKm || 28) * 1.1,
@@ -966,7 +978,9 @@ export default function OnboardingScreen() {
                       <Text style={styles.weekPhaseSub}>{item.phaseName}</Text>
                     </View>
                     <View style={styles.weekKmBadge}>
-                      <Text style={styles.weekKmVal}>~{item.estimatedKm} km</Text>
+                      <Text style={styles.weekKmVal}>
+                        ~{item.estimatedKm} km
+                      </Text>
                       <Text style={styles.weekSessionsSub}>
                         {item.plannedRunningSessions} séances
                       </Text>
@@ -1028,76 +1042,672 @@ export default function OnboardingScreen() {
         <>
           <OnboardingProgress currentStep={step} totalSteps={5} />
           <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.contentContainer,
-          { paddingBottom: Math.max(insets.bottom, 24) + Spacing.xl },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Main Card Container */}
-        <View style={styles.cardContainer}>
-          <Text style={styles.stepSubtitle}>ÉTAPE {step} SUR 5</Text>
+            style={styles.scroll}
+            contentContainerStyle={[
+              styles.contentContainer,
+              { paddingBottom: Math.max(insets.bottom, 24) + Spacing.xl },
+            ]}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Main Card Container */}
+            <View style={styles.cardContainer}>
+              <Text style={styles.stepSubtitle}>ÉTAPE {step} SUR 5</Text>
 
-          {/* ================= STEP 1: AUTH ================= */}
-          {step === 1 && (
-            <View>
-              <Text style={styles.title}>Sauvegarde ton{"\n"}plan</Text>
-              <Text style={styles.description}>
-                Crée ton espace personnel pour retrouver tes séances partout.
-              </Text>
+              {/* ================= STEP 1: AUTH ================= */}
+              {step === 1 && (
+                <View>
+                  <Text style={styles.title}>Sauvegarde ton{"\n"}plan</Text>
+                  <Text style={styles.description}>
+                    Crée ton espace personnel pour retrouver tes séances
+                    partout.
+                  </Text>
 
-              {authErrorMessage && (
-                <View style={styles.errorBanner}>
-                  <Feather name="alert-circle" size={16} color="#DC2626" />
-                  <Text style={styles.errorBannerText}>{authErrorMessage}</Text>
+                  {authErrorMessage && (
+                    <View style={styles.errorBanner}>
+                      <Feather name="alert-circle" size={16} color="#DC2626" />
+                      <Text style={styles.errorBannerText}>
+                        {authErrorMessage}
+                      </Text>
+                    </View>
+                  )}
+
+                  {session && (
+                    <View style={styles.connectedCard}>
+                      <View style={styles.connectedHeaderRow}>
+                        <View style={styles.connectedAvatarCircle}>
+                          <Feather name="check" size={18} color="#16A34A" />
+                        </View>
+                        <View style={styles.connectedTextCol}>
+                          <Text style={styles.connectedBadgeText}>
+                            SESSION ACTIVE
+                          </Text>
+                          <Text style={styles.connectedEmailText}>
+                            {session.user?.email || "Compte connecté"}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.switchAccountBtn}
+                          activeOpacity={0.7}
+                          onPress={async () => {
+                            await signOut();
+                          }}
+                        >
+                          <Feather
+                            name="log-out"
+                            size={14}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.switchAccountText}>
+                            Déconnexion
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <TouchableOpacity
+                        style={styles.continueWithAccountBtn}
+                        activeOpacity={0.88}
+                        onPress={() => {
+                          setAuthMethod(
+                            (session.user?.app_metadata?.provider as string) ||
+                              "email",
+                          );
+                          setStep(2);
+                        }}
+                      >
+                        <Text style={styles.continueWithAccountBtnText}>
+                          Continuer avec ce compte
+                        </Text>
+                        <Feather
+                          name="arrow-right"
+                          size={18}
+                          color={Colors.textWhite}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {/* Apple Auth */}
+                  <TouchableOpacity
+                    style={styles.appleBtn}
+                    activeOpacity={0.88}
+                    disabled={authLoading}
+                    onPress={handleAppleAuth}
+                  >
+                    {authLoading && authMethod === "apple" ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={Colors.textWhite}
+                      />
+                    ) : (
+                      <>
+                        <FontAwesome
+                          name="apple"
+                          size={22}
+                          color={Colors.textWhite}
+                          style={styles.authIcon}
+                        />
+                        <Text style={styles.appleBtnText}>
+                          Continuer avec Apple
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Google Auth */}
+                  <TouchableOpacity
+                    style={styles.googleBtn}
+                    activeOpacity={0.88}
+                    disabled={authLoading}
+                    onPress={handleGoogleAuth}
+                  >
+                    {authLoading && authMethod === "google" ? (
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                    ) : (
+                      <>
+                        <FontAwesome
+                          name="google"
+                          size={18}
+                          color="#4285F4"
+                          style={styles.authIcon}
+                        />
+                        <Text style={styles.googleBtnText}>
+                          Continuer avec Google
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Divider */}
+                  <View style={styles.orDividerRow}>
+                    <View style={styles.orLine} />
+                    <Text style={styles.orText}>ou</Text>
+                    <View style={styles.orLine} />
+                  </View>
+
+                  {/* Email option */}
+                  <TouchableOpacity
+                    style={styles.emailOptionBtn}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setAuthErrorMessage(null);
+                      setIsEmailModalVisible(true);
+                    }}
+                  >
+                    <Text style={styles.emailOptionText}>
+                      Continuer avec email et mot de passe
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Skip / Passer la connexion (Phase de Test) */}
+                  <TouchableOpacity
+                    style={styles.skipAuthBtn}
+                    activeOpacity={0.8}
+                    onPress={handleSkipAuth}
+                  >
+                    <Feather
+                      name="arrow-right-circle"
+                      size={18}
+                      color={Colors.primary}
+                    />
+                    <Text style={styles.skipAuthBtnText}>
+                      Passer la connexion (Mode Test)
+                    </Text>
+                  </TouchableOpacity>
+
+                  <Text style={styles.termsText}>
+                    En continuant, tu acceptes les{" "}
+                    <Text style={styles.termsLink}>
+                      conditions d'utilisation
+                    </Text>
+                    .
+                  </Text>
                 </View>
               )}
 
-              {session && (
-                <View style={styles.connectedCard}>
-                  <View style={styles.connectedHeaderRow}>
-                    <View style={styles.connectedAvatarCircle}>
-                      <Feather name="check" size={18} color="#16A34A" />
-                    </View>
-                    <View style={styles.connectedTextCol}>
-                      <Text style={styles.connectedBadgeText}>
-                        SESSION ACTIVE
-                      </Text>
-                      <Text style={styles.connectedEmailText}>
-                        {session.user?.email || "Compte connecté"}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.switchAccountBtn}
-                      activeOpacity={0.7}
-                      onPress={async () => {
-                        await signOut();
+              {/* ================= STEP 2: GOAL ================= */}
+              {step === 2 && (
+                <View>
+                  <Text style={styles.title}>
+                    Parle-nous de ton{"\n"}objectif
+                  </Text>
+                  <Text style={styles.description}>
+                    Décris ce que tu veux accomplir. Ton coach s'appuiera dessus
+                    pour construire un programme vraiment personnel.
+                  </Text>
+
+                  <Text style={styles.inputLabel}>Ton objectif principal</Text>
+
+                  <View style={styles.textInputCard}>
+                    <TextInput
+                      style={styles.textInput}
+                      multiline
+                      numberOfLines={3}
+                      maxLength={180}
+                      placeholder="Ex. Semi de Paris sous 1h45 sans me blesser aux mollets, pas dispo le jeudi"
+                      placeholderTextColor={Colors.textMuted}
+                      value={goalText}
+                      onChangeText={(val) => {
+                        setGoalText(val);
+                        if (goalAnalysis) setGoalAnalysis(null);
                       }}
-                    >
-                      <Feather
-                        name="log-out"
-                        size={14}
-                        color={Colors.textSecondary}
-                      />
-                      <Text style={styles.switchAccountText}>Déconnexion</Text>
-                    </TouchableOpacity>
+                    />
                   </View>
 
-                  <TouchableOpacity
-                    style={styles.continueWithAccountBtn}
-                    activeOpacity={0.88}
-                    onPress={() => {
-                      setAuthMethod(
-                        (session.user?.app_metadata?.provider as string) ||
-                          "email",
-                      );
-                      setStep(2);
-                    }}
-                  >
-                    <Text style={styles.continueWithAccountBtnText}>
-                      Continuer avec ce compte
+                  <View style={styles.lockRow}>
+                    <Feather name="lock" size={14} color={Colors.textMuted} />
+                    <Text style={styles.lockCaption}>
+                      Ton coach structurera automatiquement ton objectif, ton
+                      calendrier et tes disponibilités à l'envoi.
                     </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* ================= STEP 3: SPORTS ================= */}
+              {step === 3 && (
+                <View>
+                  <Text style={styles.title}>
+                    Quels sports veux-{"\n"}tu ajouter ?
+                  </Text>
+                  <Text style={styles.description}>
+                    Sélectionne une ou plusieurs disciplines pour ton programme.
+                    Tu pourras en ajouter d'autres plus tard.
+                  </Text>
+
+                  {/* Sport 1: Running */}
+                  <TouchableOpacity
+                    style={[
+                      styles.sportCard,
+                      selectedSports.includes("running") &&
+                        styles.sportCardSelected,
+                    ]}
+                    activeOpacity={0.8}
+                    onPress={() => toggleSport("running")}
+                  >
+                    <Text
+                      style={[
+                        styles.sportTitle,
+                        selectedSports.includes("running") &&
+                          styles.sportTitleSelected,
+                      ]}
+                    >
+                      Course à pied
+                    </Text>
+                    {selectedSports.includes("running") && (
+                      <Feather name="check" size={20} color={Colors.primary} />
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Sport 2: Swimming */}
+                  <TouchableOpacity
+                    style={[
+                      styles.sportCard,
+                      selectedSports.includes("swimming") &&
+                        styles.sportCardSelected,
+                    ]}
+                    activeOpacity={0.8}
+                    onPress={() => toggleSport("swimming")}
+                  >
+                    <Text
+                      style={[
+                        styles.sportTitle,
+                        selectedSports.includes("swimming") &&
+                          styles.sportTitleSelected,
+                      ]}
+                    >
+                      Natation
+                    </Text>
+                    {selectedSports.includes("swimming") && (
+                      <Feather name="check" size={20} color={Colors.primary} />
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Sport 3: Cycling */}
+                  <TouchableOpacity
+                    style={[
+                      styles.sportCard,
+                      selectedSports.includes("cycling") &&
+                        styles.sportCardSelected,
+                    ]}
+                    activeOpacity={0.8}
+                    onPress={() => toggleSport("cycling")}
+                  >
+                    <Text
+                      style={[
+                        styles.sportTitle,
+                        selectedSports.includes("cycling") &&
+                          styles.sportTitleSelected,
+                      ]}
+                    >
+                      Vélo
+                    </Text>
+                    {selectedSports.includes("cycling") && (
+                      <Feather name="check" size={20} color={Colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* ================= STEP 4: CONNECT APPS ================= */}
+              {step === 4 && (
+                <View>
+                  <Text style={styles.title}>Connecte tes{"\n"}applis</Text>
+                  <Text style={styles.description}>
+                    Nous récupérons tes 6 derniers mois d'activités Strava pour
+                    calibrer ton plan et conserver tout ton historique dans
+                    l'application.
+                  </Text>
+
+                  {/* 2x3 Grid */}
+                  <View style={styles.appsGrid}>
+                    {appsCatalog.map((app) => {
+                      const isConnected = connectedAppIds.includes(app.id);
+                      const isStrava = app.id === "strava";
+
+                      return (
+                        <TouchableOpacity
+                          key={app.id}
+                          style={[
+                            styles.appCard,
+                            isConnected && styles.appCardConnected,
+                          ]}
+                          activeOpacity={0.8}
+                          onPress={() => toggleApp(app.id)}
+                        >
+                          <View style={styles.appCardContent}>
+                            <View
+                              style={[
+                                styles.appIconCircle,
+                                { backgroundColor: app.color },
+                              ]}
+                            >
+                              <Text style={styles.appIconLetter}>
+                                {app.code}
+                              </Text>
+                            </View>
+
+                            <View style={styles.appTextCol}>
+                              <Text style={styles.appName}>{app.name}</Text>
+                              <Text
+                                style={[
+                                  styles.appStatusLabel,
+                                  isConnected && styles.appStatusConnected,
+                                ]}
+                              >
+                                {isStrava && isSyncingStrava
+                                  ? "Sync 6 mois..."
+                                  : isConnected
+                                    ? isStrava
+                                      ? "6 mois importés ✓"
+                                      : "Connecté ✓"
+                                    : "Connecter"}
+                              </Text>
+                            </View>
+                          </View>
+                          {isStrava && isSyncingStrava ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={Colors.primary}
+                            />
+                          ) : (
+                            <Feather
+                              name="chevron-right"
+                              size={16}
+                              color={
+                                isConnected ? Colors.primary : Colors.textMuted
+                              }
+                            />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* Bilan des 6 derniers mois Strava + Diagnostic "Aha! Moment" */}
+                  {connectedAppIds.includes("strava") && stravaSummary && (
+                    <View style={styles.stravaSummaryCard}>
+                      <View style={styles.stravaSummaryHeader}>
+                        <View style={styles.stravaBadgePill}>
+                          <MaterialCommunityIcons
+                            name="run-fast"
+                            size={14}
+                            color={Colors.primary}
+                          />
+                          <Text style={styles.stravaBadgeText}>
+                            HISTORIQUE STRAVA • 6 DERNIERS MOIS
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => triggerStravaSixMonthsSync()}
+                          disabled={isSyncingStrava}
+                          style={styles.stravaResyncBtn}
+                        >
+                          <Feather
+                            name="refresh-cw"
+                            size={13}
+                            color={Colors.primary}
+                          />
+                          <Text style={styles.stravaResyncText}>
+                            Actualiser
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* 4 KPIs sur 6 mois */}
+                      <View style={styles.stravaMetricsGrid}>
+                        <View style={styles.stravaMetricBox}>
+                          <Text style={styles.stravaMetricValue}>
+                            {stravaSummary.totalKm ??
+                              stravaSummary.totalDistanceKm}{" "}
+                            km
+                          </Text>
+                          <Text style={styles.stravaMetricLabel}>
+                            Volume 6 mois
+                          </Text>
+                        </View>
+                        <View style={styles.stravaMetricBox}>
+                          <Text style={styles.stravaMetricValue}>
+                            {stravaSummary.totalSessions ??
+                              stravaSummary.totalActivities}
+                          </Text>
+                          <Text style={styles.stravaMetricLabel}>
+                            Séances gardées
+                          </Text>
+                        </View>
+                        <View style={styles.stravaMetricBox}>
+                          <Text style={styles.stravaMetricValue}>
+                            {stravaSummary.recent4WeeksAvgKm} km
+                          </Text>
+                          <Text style={styles.stravaMetricLabel}>
+                            Moy. / sem (4 sem.)
+                          </Text>
+                        </View>
+                        <View style={styles.stravaMetricBox}>
+                          <Text style={styles.stravaMetricValue}>
+                            {stravaSummary.longestRunKm} km
+                          </Text>
+                          <Text style={styles.stravaMetricLabel}>
+                            Sortie longue max
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Allures et charge physiologique déduites des 6 mois */}
+                      <View style={styles.pacesPreviewRow}>
+                        <View style={styles.pacePill}>
+                          <Text style={styles.pacePillLabel}>Endurance Z2</Text>
+                          <Text style={styles.pacePillValue}>
+                            {stravaSummary.estimatedPaces.easyPaceRange ??
+                              stravaSummary.estimatedPaces.easyPaceZ2}
+                          </Text>
+                        </View>
+                        <View style={styles.pacePill}>
+                          <Text style={styles.pacePillLabel}>Seuil Z4</Text>
+                          <Text style={styles.pacePillValue}>
+                            {stravaSummary.estimatedPaces.thresholdPace ??
+                              stravaSummary.estimatedPaces.thresholdPaceZ4}
+                          </Text>
+                        </View>
+                        <View style={styles.pacePill}>
+                          <Text style={styles.pacePillLabel}>Fitness CTL</Text>
+                          <Text style={styles.pacePillValue}>
+                            {Math.round(
+                              stravaSummary.ctlFitness ??
+                                stravaSummary.banisterLoad?.ctlFitness ??
+                                52,
+                            )}{" "}
+                            pts
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Mini histogramme mensuel Avril -> Octobre */}
+                      {stravaSummary.monthlyBreakdown.length > 0 && (
+                        <View style={styles.monthlyBarsContainer}>
+                          <Text style={styles.monthlyBarsTitle}>
+                            PROGRESSION MENSUELLE CONSERVÉE DANS LE CALENDRIER
+                          </Text>
+                          <View style={styles.monthlyBarsRow}>
+                            {stravaSummary.monthlyBreakdown.map((m) => {
+                              const maxKm = Math.max(
+                                ...stravaSummary.monthlyBreakdown.map(
+                                  (item) => item.totalKm,
+                                ),
+                                1,
+                              );
+                              const barHeight = Math.max(
+                                12,
+                                Math.round((m.totalKm / maxKm) * 48),
+                              );
+                              return (
+                                <View
+                                  key={m.monthKey}
+                                  style={styles.monthlyBarCol}
+                                >
+                                  <Text style={styles.monthlyBarKmText}>
+                                    {Math.round(m.totalKm)}
+                                  </Text>
+                                  <View
+                                    style={[
+                                      styles.monthlyBarFill,
+                                      { height: barHeight },
+                                    ]}
+                                  />
+                                  <Text style={styles.monthlyBarLabel}>
+                                    {m.label ?? m.monthLabel}
+                                  </Text>
+                                </View>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      )}
+
+                      {/* Diagnostic Aha! Moment */}
+                      <View style={styles.ahaMomentBox}>
+                        <View style={styles.ahaMomentHeader}>
+                          <Feather
+                            name="activity"
+                            size={14}
+                            color={Colors.primary}
+                          />
+                          <Text style={styles.ahaMomentTitle}>
+                            DIAGNOSTIC SUR TES 6 MOIS STRAVA
+                          </Text>
+                        </View>
+                        <Text style={styles.ahaMomentText}>
+                          {stravaSummary.ahaInsight}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Skip option */}
+                  <TouchableOpacity
+                    style={styles.skipStepBtn}
+                    activeOpacity={0.7}
+                    onPress={handleNext}
+                  >
+                    <Text style={styles.skipStepText}>
+                      Passer cette étape pour le moment
+                    </Text>
+                    <Feather
+                      name="arrow-right"
+                      size={16}
+                      color={Colors.primary}
+                    />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* ================= STEP 5: PLAN SELECTION ================= */}
+              {step === 5 && (
+                <View>
+                  <Text style={styles.title}>
+                    Choisis ton mode{"\n"}d'entraînement
+                  </Text>
+                  <Text style={styles.description}>
+                    Ton plan multi-semaines va être généré immédiatement à
+                    partir de ton objectif et de ton historique.
+                  </Text>
+
+                  {/* Récapitulatif de connexion des 6 mois Strava -> Génération du plan */}
+                  {connectedAppIds.includes("strava") && stravaSummary && (
+                    <View style={styles.planCalibrationBanner}>
+                      <View style={styles.planCalibrationHeader}>
+                        <Feather
+                          name="check-circle"
+                          size={15}
+                          color={Colors.primary}
+                        />
+                        <Text style={styles.planCalibrationTitle}>
+                          CALIBRÉ SUR TES 6 DERNIERS MOIS STRAVA
+                        </Text>
+                      </View>
+                      <Text style={styles.planCalibrationText}>
+                        {stravaSummary.totalSessions ??
+                          stravaSummary.totalActivities}{" "}
+                        séances (
+                        {stravaSummary.totalKm ?? stravaSummary.totalDistanceKm}{" "}
+                        km cumulés • {stravaSummary.recent4WeeksAvgKm} km/sem
+                        récents) sont enregistrées dans ton calendrier et
+                        servent de socle pour créer ton plan vers :{" "}
+                        <Text style={styles.planCalibrationGoalBold}>
+                          {goalAnalysis?.reformulatedGoal || goalText}
+                        </Text>
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Option 1: Basique */}
+                  <TouchableOpacity
+                    style={[
+                      styles.planCard,
+                      selectedPlan === "basic" && styles.planCardActive,
+                    ]}
+                    activeOpacity={0.88}
+                    onPress={() => setSelectedPlan("basic")}
+                  >
+                    <View style={styles.planHeaderRow}>
+                      <Text style={styles.planTitle}>Basique</Text>
+                      <Text style={styles.planFreeText}>Gratuit</Text>
+                    </View>
+                    <Text style={styles.planDescription}>
+                      Plan initial calibré sur tes 6 mois Strava,
+                      synchronisation des sorties.
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Option 2: Pro Adaptatif */}
+                  <TouchableOpacity
+                    style={[
+                      styles.planCard,
+                      styles.planCardPro,
+                      selectedPlan === "pro" && styles.planCardProActive,
+                    ]}
+                    activeOpacity={0.88}
+                    onPress={() => setSelectedPlan("pro")}
+                  >
+                    {/* Recommandé badge pill */}
+                    <View style={styles.recommendedBadge}>
+                      <Text style={styles.recommendedText}>Recommandé</Text>
+                    </View>
+
+                    <View style={styles.planHeaderRow}>
+                      <Text style={styles.planTitle}>Pro Adaptatif</Text>
+                      <Text style={styles.planOfferText}>14 jours offerts</Text>
+                    </View>
+                    <Text style={styles.planDescription}>
+                      Plan multi-semaines évolutif calibré sur tes 6 mois
+                      Strava, Coach IA illimité, arbitrage de fatigue en temps
+                      réel.
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* ================= STEP BOTTOM ACTIONS ================= */}
+              {step > 1 && step < 5 && (
+                <View style={styles.bottomNavRow}>
+                  <TouchableOpacity
+                    style={styles.backBtn}
+                    activeOpacity={0.7}
+                    onPress={handleBack}
+                  >
+                    <Feather
+                      name="arrow-left"
+                      size={18}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.backBtnText}>Retour</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.continueBtn}
+                    activeOpacity={0.88}
+                    onPress={handleNext}
+                  >
+                    <Text style={styles.continueBtnText}>Continuer</Text>
                     <Feather
                       name="arrow-right"
                       size={18}
@@ -1107,631 +1717,61 @@ export default function OnboardingScreen() {
                 </View>
               )}
 
-              {/* Apple Auth */}
-              <TouchableOpacity
-                style={styles.appleBtn}
-                activeOpacity={0.88}
-                disabled={authLoading}
-                onPress={handleAppleAuth}
-              >
-                {authLoading && authMethod === "apple" ? (
-                  <ActivityIndicator size="small" color={Colors.textWhite} />
-                ) : (
-                  <>
-                    <FontAwesome
-                      name="apple"
-                      size={22}
-                      color={Colors.textWhite}
-                      style={styles.authIcon}
-                    />
-                    <Text style={styles.appleBtnText}>
-                      Continuer avec Apple
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              {/* Google Auth */}
-              <TouchableOpacity
-                style={styles.googleBtn}
-                activeOpacity={0.88}
-                disabled={authLoading}
-                onPress={handleGoogleAuth}
-              >
-                {authLoading && authMethod === "google" ? (
-                  <ActivityIndicator size="small" color={Colors.primary} />
-                ) : (
-                  <>
-                    <FontAwesome
-                      name="google"
-                      size={18}
-                      color="#4285F4"
-                      style={styles.authIcon}
-                    />
-                    <Text style={styles.googleBtnText}>
-                      Continuer avec Google
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              {/* Divider */}
-              <View style={styles.orDividerRow}>
-                <View style={styles.orLine} />
-                <Text style={styles.orText}>ou</Text>
-                <View style={styles.orLine} />
-              </View>
-
-              {/* Email option */}
-              <TouchableOpacity
-                style={styles.emailOptionBtn}
-                activeOpacity={0.7}
-                onPress={() => {
-                  setAuthErrorMessage(null);
-                  setIsEmailModalVisible(true);
-                }}
-              >
-                <Text style={styles.emailOptionText}>
-                  Continuer avec email et mot de passe
-                </Text>
-              </TouchableOpacity>
-
-              {/* Skip / Passer la connexion (Phase de Test) */}
-              <TouchableOpacity
-                style={styles.skipAuthBtn}
-                activeOpacity={0.8}
-                onPress={handleSkipAuth}
-              >
-                <Feather
-                  name="arrow-right-circle"
-                  size={18}
-                  color={Colors.primary}
-                />
-                <Text style={styles.skipAuthBtnText}>
-                  Passer la connexion (Mode Test)
-                </Text>
-              </TouchableOpacity>
-
-              <Text style={styles.termsText}>
-                En continuant, tu acceptes les{" "}
-                <Text style={styles.termsLink}>conditions d'utilisation</Text>.
-              </Text>
-            </View>
-          )}
-
-          {/* ================= STEP 2: GOAL ================= */}
-          {step === 2 && (
-            <View>
-              <Text style={styles.title}>Parle-nous de ton{"\n"}objectif</Text>
-              <Text style={styles.description}>
-                Décris ce que tu veux accomplir. Ton coach s'appuiera dessus
-                pour construire un programme vraiment personnel.
-              </Text>
-
-              <Text style={styles.inputLabel}>Ton objectif principal</Text>
-
-              <View style={styles.textInputCard}>
-                <TextInput
-                  style={styles.textInput}
-                  multiline
-                  numberOfLines={3}
-                  maxLength={180}
-                  placeholder="Ex. Semi de Paris sous 1h45 sans me blesser aux mollets, pas dispo le jeudi"
-                  placeholderTextColor={Colors.textMuted}
-                  value={goalText}
-                  onChangeText={(val) => {
-                    setGoalText(val);
-                    if (goalAnalysis) setGoalAnalysis(null);
-                  }}
-                />
-              </View>
-
-              <View style={styles.lockRow}>
-                <Feather name="lock" size={14} color={Colors.textMuted} />
-                <Text style={styles.lockCaption}>
-                  Ton coach structurera automatiquement ton objectif, ton calendrier et tes disponibilités à l'envoi.
-                </Text>
-              </View>
-            </View>
-          )}
-
-          {/* ================= STEP 3: SPORTS ================= */}
-          {step === 3 && (
-            <View>
-              <Text style={styles.title}>
-                Quels sports veux-{"\n"}tu ajouter ?
-              </Text>
-              <Text style={styles.description}>
-                Sélectionne une ou plusieurs disciplines pour ton programme. Tu
-                pourras en ajouter d'autres plus tard.
-              </Text>
-
-              {/* Sport 1: Running */}
-              <TouchableOpacity
-                style={[
-                  styles.sportCard,
-                  selectedSports.includes("running") &&
-                    styles.sportCardSelected,
-                ]}
-                activeOpacity={0.8}
-                onPress={() => toggleSport("running")}
-              >
-                <Text
-                  style={[
-                    styles.sportTitle,
-                    selectedSports.includes("running") &&
-                      styles.sportTitleSelected,
-                  ]}
-                >
-                  Course à pied
-                </Text>
-                {selectedSports.includes("running") && (
-                  <Feather name="check" size={20} color={Colors.primary} />
-                )}
-              </TouchableOpacity>
-
-              {/* Sport 2: Swimming */}
-              <TouchableOpacity
-                style={[
-                  styles.sportCard,
-                  selectedSports.includes("swimming") &&
-                    styles.sportCardSelected,
-                ]}
-                activeOpacity={0.8}
-                onPress={() => toggleSport("swimming")}
-              >
-                <Text
-                  style={[
-                    styles.sportTitle,
-                    selectedSports.includes("swimming") &&
-                      styles.sportTitleSelected,
-                  ]}
-                >
-                  Natation
-                </Text>
-                {selectedSports.includes("swimming") && (
-                  <Feather name="check" size={20} color={Colors.primary} />
-                )}
-              </TouchableOpacity>
-
-              {/* Sport 3: Cycling */}
-              <TouchableOpacity
-                style={[
-                  styles.sportCard,
-                  selectedSports.includes("cycling") &&
-                    styles.sportCardSelected,
-                ]}
-                activeOpacity={0.8}
-                onPress={() => toggleSport("cycling")}
-              >
-                <Text
-                  style={[
-                    styles.sportTitle,
-                    selectedSports.includes("cycling") &&
-                      styles.sportTitleSelected,
-                  ]}
-                >
-                  Vélo
-                </Text>
-                {selectedSports.includes("cycling") && (
-                  <Feather name="check" size={20} color={Colors.primary} />
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* ================= STEP 4: CONNECT APPS ================= */}
-          {step === 4 && (
-            <View>
-              <Text style={styles.title}>Connecte tes{"\n"}applis</Text>
-              <Text style={styles.description}>
-                Nous récupérons tes 6 derniers mois d'activités Strava pour
-                calibrer ton plan et conserver tout ton historique dans
-                l'application.
-              </Text>
-
-              {/* 2x3 Grid */}
-              <View style={styles.appsGrid}>
-                {appsCatalog.map((app) => {
-                  const isConnected = connectedAppIds.includes(app.id);
-                  const isStrava = app.id === "strava";
-
-                  return (
+              {/* Step 5 CTA buttons */}
+              {step === 5 && (
+                <View style={styles.step5Actions}>
+                  <View style={styles.bottomNavRow}>
                     <TouchableOpacity
-                      key={app.id}
-                      style={[
-                        styles.appCard,
-                        isConnected && styles.appCardConnected,
-                      ]}
-                      activeOpacity={0.8}
-                      onPress={() => toggleApp(app.id)}
-                    >
-                      <View style={styles.appCardContent}>
-                        <View
-                          style={[
-                            styles.appIconCircle,
-                            { backgroundColor: app.color },
-                          ]}
-                        >
-                          <Text style={styles.appIconLetter}>{app.code}</Text>
-                        </View>
-
-                        <View style={styles.appTextCol}>
-                          <Text style={styles.appName}>{app.name}</Text>
-                          <Text
-                            style={[
-                              styles.appStatusLabel,
-                              isConnected && styles.appStatusConnected,
-                            ]}
-                          >
-                            {isStrava && isSyncingStrava
-                              ? "Sync 6 mois..."
-                              : isConnected
-                                ? isStrava
-                                  ? "6 mois importés ✓"
-                                  : "Connecté ✓"
-                                : "Connecter"}
-                          </Text>
-                        </View>
-                      </View>
-                      {isStrava && isSyncingStrava ? (
-                        <ActivityIndicator
-                          size="small"
-                          color={Colors.primary}
-                        />
-                      ) : (
-                        <Feather
-                          name="chevron-right"
-                          size={16}
-                          color={
-                            isConnected ? Colors.primary : Colors.textMuted
-                          }
-                        />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* Bilan des 6 derniers mois Strava + Diagnostic "Aha! Moment" */}
-              {connectedAppIds.includes("strava") && stravaSummary && (
-                <View style={styles.stravaSummaryCard}>
-                  <View style={styles.stravaSummaryHeader}>
-                    <View style={styles.stravaBadgePill}>
-                      <MaterialCommunityIcons
-                        name="run-fast"
-                        size={14}
-                        color={Colors.primary}
-                      />
-                      <Text style={styles.stravaBadgeText}>
-                        HISTORIQUE STRAVA • 6 DERNIERS MOIS
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => triggerStravaSixMonthsSync()}
-                      disabled={isSyncingStrava}
-                      style={styles.stravaResyncBtn}
+                      style={styles.backBtn}
+                      activeOpacity={0.7}
+                      disabled={isSubmitting}
+                      onPress={handleBack}
                     >
                       <Feather
-                        name="refresh-cw"
-                        size={13}
-                        color={Colors.primary}
+                        name="arrow-left"
+                        size={18}
+                        color={Colors.textSecondary}
                       />
-                      <Text style={styles.stravaResyncText}>Actualiser</Text>
+                      <Text style={styles.backBtnText}>Retour</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.continueBtn, styles.proCtaBtn]}
+                      activeOpacity={0.88}
+                      disabled={isSubmitting}
+                      onPress={() => {
+                        setSelectedPlan("pro");
+                        handleStartPlanGeneration("pro");
+                      }}
+                    >
+                      <Text style={styles.continueBtnText}>
+                        Générer mon plan Pro
+                      </Text>
+                      <Feather
+                        name="arrow-right"
+                        size={18}
+                        color={Colors.textWhite}
+                      />
                     </TouchableOpacity>
                   </View>
 
-                  {/* 4 KPIs sur 6 mois */}
-                  <View style={styles.stravaMetricsGrid}>
-                    <View style={styles.stravaMetricBox}>
-                      <Text style={styles.stravaMetricValue}>
-                        {stravaSummary.totalKm ?? stravaSummary.totalDistanceKm}{" "}
-                        km
-                      </Text>
-                      <Text style={styles.stravaMetricLabel}>
-                        Volume 6 mois
-                      </Text>
-                    </View>
-                    <View style={styles.stravaMetricBox}>
-                      <Text style={styles.stravaMetricValue}>
-                        {stravaSummary.totalSessions ??
-                          stravaSummary.totalActivities}
-                      </Text>
-                      <Text style={styles.stravaMetricLabel}>
-                        Séances gardées
-                      </Text>
-                    </View>
-                    <View style={styles.stravaMetricBox}>
-                      <Text style={styles.stravaMetricValue}>
-                        {stravaSummary.recent4WeeksAvgKm} km
-                      </Text>
-                      <Text style={styles.stravaMetricLabel}>
-                        Moy. / sem (4 sem.)
-                      </Text>
-                    </View>
-                    <View style={styles.stravaMetricBox}>
-                      <Text style={styles.stravaMetricValue}>
-                        {stravaSummary.longestRunKm} km
-                      </Text>
-                      <Text style={styles.stravaMetricLabel}>
-                        Sortie longue max
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Allures et charge physiologique déduites des 6 mois */}
-                  <View style={styles.pacesPreviewRow}>
-                    <View style={styles.pacePill}>
-                      <Text style={styles.pacePillLabel}>Endurance Z2</Text>
-                      <Text style={styles.pacePillValue}>
-                        {stravaSummary.estimatedPaces.easyPaceRange ??
-                          stravaSummary.estimatedPaces.easyPaceZ2}
-                      </Text>
-                    </View>
-                    <View style={styles.pacePill}>
-                      <Text style={styles.pacePillLabel}>Seuil Z4</Text>
-                      <Text style={styles.pacePillValue}>
-                        {stravaSummary.estimatedPaces.thresholdPace ??
-                          stravaSummary.estimatedPaces.thresholdPaceZ4}
-                      </Text>
-                    </View>
-                    <View style={styles.pacePill}>
-                      <Text style={styles.pacePillLabel}>Fitness CTL</Text>
-                      <Text style={styles.pacePillValue}>
-                        {Math.round(
-                          stravaSummary.ctlFitness ??
-                            stravaSummary.banisterLoad?.ctlFitness ??
-                            52,
-                        )}{" "}
-                        pts
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Mini histogramme mensuel Avril -> Octobre */}
-                  {stravaSummary.monthlyBreakdown.length > 0 && (
-                    <View style={styles.monthlyBarsContainer}>
-                      <Text style={styles.monthlyBarsTitle}>
-                        PROGRESSION MENSUELLE CONSERVÉE DANS LE CALENDRIER
-                      </Text>
-                      <View style={styles.monthlyBarsRow}>
-                        {stravaSummary.monthlyBreakdown.map((m) => {
-                          const maxKm = Math.max(
-                            ...stravaSummary.monthlyBreakdown.map(
-                              (item) => item.totalKm,
-                            ),
-                            1,
-                          );
-                          const barHeight = Math.max(
-                            12,
-                            Math.round((m.totalKm / maxKm) * 48),
-                          );
-                          return (
-                            <View key={m.monthKey} style={styles.monthlyBarCol}>
-                              <Text style={styles.monthlyBarKmText}>
-                                {Math.round(m.totalKm)}
-                              </Text>
-                              <View
-                                style={[
-                                  styles.monthlyBarFill,
-                                  { height: barHeight },
-                                ]}
-                              />
-                              <Text style={styles.monthlyBarLabel}>
-                                {m.label ?? m.monthLabel}
-                              </Text>
-                            </View>
-                          );
-                        })}
-                      </View>
-                    </View>
-                  )}
-
-                  {/* Diagnostic Aha! Moment */}
-                  <View style={styles.ahaMomentBox}>
-                    <View style={styles.ahaMomentHeader}>
-                      <Feather
-                        name="activity"
-                        size={14}
-                        color={Colors.primary}
-                      />
-                      <Text style={styles.ahaMomentTitle}>
-                        DIAGNOSTIC SUR TES 6 MOIS STRAVA
-                      </Text>
-                    </View>
-                    <Text style={styles.ahaMomentText}>
-                      {stravaSummary.ahaInsight}
+                  <TouchableOpacity
+                    style={styles.basicCtaBtn}
+                    activeOpacity={0.7}
+                    disabled={isSubmitting}
+                    onPress={() => {
+                      setSelectedPlan("basic");
+                      handleStartPlanGeneration("basic");
+                    }}
+                  >
+                    <Text style={styles.basicCtaText}>
+                      Continuer et générer mon plan en version basique gratuite
                     </Text>
-                  </View>
+                  </TouchableOpacity>
                 </View>
               )}
-
-              {/* Skip option */}
-              <TouchableOpacity
-                style={styles.skipStepBtn}
-                activeOpacity={0.7}
-                onPress={handleNext}
-              >
-                <Text style={styles.skipStepText}>
-                  Passer cette étape pour le moment
-                </Text>
-                <Feather name="arrow-right" size={16} color={Colors.primary} />
-              </TouchableOpacity>
             </View>
-          )}
-
-          {/* ================= STEP 5: PLAN SELECTION ================= */}
-          {step === 5 && (
-            <View>
-              <Text style={styles.title}>
-                Choisis ton mode{"\n"}d'entraînement
-              </Text>
-              <Text style={styles.description}>
-                Ton plan multi-semaines va être généré immédiatement à partir de
-                ton objectif et de ton historique.
-              </Text>
-
-              {/* Récapitulatif de connexion des 6 mois Strava -> Génération du plan */}
-              {connectedAppIds.includes("strava") && stravaSummary && (
-                <View style={styles.planCalibrationBanner}>
-                  <View style={styles.planCalibrationHeader}>
-                    <Feather
-                      name="check-circle"
-                      size={15}
-                      color={Colors.primary}
-                    />
-                    <Text style={styles.planCalibrationTitle}>
-                      CALIBRÉ SUR TES 6 DERNIERS MOIS STRAVA
-                    </Text>
-                  </View>
-                  <Text style={styles.planCalibrationText}>
-                    {stravaSummary.totalSessions ??
-                      stravaSummary.totalActivities}{" "}
-                    séances (
-                    {stravaSummary.totalKm ?? stravaSummary.totalDistanceKm} km
-                    cumulés • {stravaSummary.recent4WeeksAvgKm} km/sem récents)
-                    sont enregistrées dans ton calendrier et servent de socle
-                    pour créer ton plan vers :{" "}
-                    <Text style={styles.planCalibrationGoalBold}>
-                      {goalAnalysis?.reformulatedGoal || goalText}
-                    </Text>
-                  </Text>
-                </View>
-              )}
-
-              {/* Option 1: Basique */}
-              <TouchableOpacity
-                style={[
-                  styles.planCard,
-                  selectedPlan === "basic" && styles.planCardActive,
-                ]}
-                activeOpacity={0.88}
-                onPress={() => setSelectedPlan("basic")}
-              >
-                <View style={styles.planHeaderRow}>
-                  <Text style={styles.planTitle}>Basique</Text>
-                  <Text style={styles.planFreeText}>Gratuit</Text>
-                </View>
-                <Text style={styles.planDescription}>
-                  Plan initial calibré sur tes 6 mois Strava, synchronisation
-                  des sorties.
-                </Text>
-              </TouchableOpacity>
-
-              {/* Option 2: Pro Adaptatif */}
-              <TouchableOpacity
-                style={[
-                  styles.planCard,
-                  styles.planCardPro,
-                  selectedPlan === "pro" && styles.planCardProActive,
-                ]}
-                activeOpacity={0.88}
-                onPress={() => setSelectedPlan("pro")}
-              >
-                {/* Recommandé badge pill */}
-                <View style={styles.recommendedBadge}>
-                  <Text style={styles.recommendedText}>Recommandé</Text>
-                </View>
-
-                <View style={styles.planHeaderRow}>
-                  <Text style={styles.planTitle}>Pro Adaptatif</Text>
-                  <Text style={styles.planOfferText}>14 jours offerts</Text>
-                </View>
-                <Text style={styles.planDescription}>
-                  Plan multi-semaines évolutif calibré sur tes 6 mois Strava,
-                  Coach IA illimité, arbitrage de fatigue en temps réel.
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* ================= STEP BOTTOM ACTIONS ================= */}
-          {step > 1 && step < 5 && (
-            <View style={styles.bottomNavRow}>
-              <TouchableOpacity
-                style={styles.backBtn}
-                activeOpacity={0.7}
-                onPress={handleBack}
-              >
-                <Feather
-                  name="arrow-left"
-                  size={18}
-                  color={Colors.textSecondary}
-                />
-                <Text style={styles.backBtnText}>Retour</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.continueBtn}
-                activeOpacity={0.88}
-                onPress={handleNext}
-              >
-                <Text style={styles.continueBtnText}>Continuer</Text>
-                <Feather
-                  name="arrow-right"
-                  size={18}
-                  color={Colors.textWhite}
-                />
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Step 5 CTA buttons */}
-          {step === 5 && (
-            <View style={styles.step5Actions}>
-              <View style={styles.bottomNavRow}>
-                <TouchableOpacity
-                  style={styles.backBtn}
-                  activeOpacity={0.7}
-                  disabled={isSubmitting}
-                  onPress={handleBack}
-                >
-                  <Feather
-                    name="arrow-left"
-                    size={18}
-                    color={Colors.textSecondary}
-                  />
-                  <Text style={styles.backBtnText}>Retour</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.continueBtn, styles.proCtaBtn]}
-                  activeOpacity={0.88}
-                  disabled={isSubmitting}
-                  onPress={() => {
-                    setSelectedPlan("pro");
-                    handleStartPlanGeneration("pro");
-                  }}
-                >
-                  <Text style={styles.continueBtnText}>
-                    Générer mon plan Pro
-                  </Text>
-                  <Feather
-                    name="arrow-right"
-                    size={18}
-                    color={Colors.textWhite}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity
-                style={styles.basicCtaBtn}
-                activeOpacity={0.7}
-                disabled={isSubmitting}
-                onPress={() => {
-                  setSelectedPlan("basic");
-                  handleStartPlanGeneration("basic");
-                }}
-              >
-                <Text style={styles.basicCtaText}>
-                  Continuer et générer mon plan en version basique gratuite
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-      </ScrollView>
+          </ScrollView>
         </>
       )}
 
@@ -3182,4 +3222,3 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
 });
-

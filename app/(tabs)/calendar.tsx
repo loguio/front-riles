@@ -173,7 +173,7 @@ export default function CalendarScreen() {
   );
 
   const activeWeekDoneKm = activeWeekWorkouts.reduce((sum: number, w: any) => {
-    let dayKm = isRunningSession(w) ? (w?.actualDistanceKm || 0) : 0;
+    let dayKm = isRunningSession(w) ? w?.actualDistanceKm || 0 : 0;
     if (Array.isArray(w?.secondaryActivities)) {
       for (const sec of w.secondaryActivities) {
         if (sec.sportType === "running" && !checkIsCommute(sec)) {
@@ -183,15 +183,18 @@ export default function CalendarScreen() {
     }
     return sum + dayKm;
   }, 0);
-  const activeWeekPlannedKm = activeWeekWorkouts.reduce((sum: number, w: any) => {
-    if (isRunningSession(w) && w?.distance) {
-      const parsed = parseFloat(
-        w.distance.replace(",", ".").replace(/[^0-9.]/g, ""),
-      );
-      return sum + (isNaN(parsed) ? 0 : parsed);
-    }
-    return sum;
-  }, 0);
+  const activeWeekPlannedKm = activeWeekWorkouts.reduce(
+    (sum: number, w: any) => {
+      if (isRunningSession(w) && w?.distance) {
+        const parsed = parseFloat(
+          w.distance.replace(",", ".").replace(/[^0-9.]/g, ""),
+        );
+        return sum + (isNaN(parsed) ? 0 : parsed);
+      }
+      return sum;
+    },
+    0,
+  );
 
   const isPastWeek =
     activeYear < currentYear ||
@@ -200,10 +203,10 @@ export default function CalendarScreen() {
   // Normalisation de toutes les activités de la journée sélectionnée (principale + secondaires)
   const primaryIsRide = Boolean(
     currentSession?.sportType === "cycling" ||
-      currentSession?.category?.toLowerCase().includes("vélo") ||
-      currentSession?.category?.toLowerCase().includes("vélotaf") ||
-      currentSession?.title?.toLowerCase().includes("ride") ||
-      currentSession?.title?.toLowerCase().includes("vélo"),
+    currentSession?.category?.toLowerCase().includes("vélo") ||
+    currentSession?.category?.toLowerCase().includes("vélotaf") ||
+    currentSession?.title?.toLowerCase().includes("ride") ||
+    currentSession?.title?.toLowerCase().includes("vélo"),
   );
 
   const primaryActivity = currentSession
@@ -335,18 +338,18 @@ export default function CalendarScreen() {
 
   const isCycling = Boolean(
     activeDisplayActivity?.sportType === "cycling" ||
-      activeDisplayActivity?.category?.toLowerCase().includes("vélo") ||
-      activeDisplayActivity?.category?.toLowerCase().includes("vélotaf") ||
-      activeDisplayActivity?.category?.toLowerCase().includes("cycl") ||
-      activeDisplayActivity?.title?.toLowerCase().includes("ride") ||
-      activeDisplayActivity?.title?.toLowerCase().includes("vélo"),
+    activeDisplayActivity?.category?.toLowerCase().includes("vélo") ||
+    activeDisplayActivity?.category?.toLowerCase().includes("vélotaf") ||
+    activeDisplayActivity?.category?.toLowerCase().includes("cycl") ||
+    activeDisplayActivity?.title?.toLowerCase().includes("ride") ||
+    activeDisplayActivity?.title?.toLowerCase().includes("vélo"),
   );
 
   const isDoneSession = activeDisplayActivity?.status === "done";
   const hasPlannedTargets = Boolean(
     !isCycling &&
-      activeDisplayActivity?.sourceProvider !== "strava" &&
-      activeDisplayActivity?.status !== "done",
+    activeDisplayActivity?.sourceProvider !== "strava" &&
+    activeDisplayActivity?.status !== "done",
   );
 
   const onRefresh = async () => {
@@ -544,11 +547,11 @@ export default function CalendarScreen() {
             const session = workouts.find((w) => w.dateKey === item.dateKey);
             const isCommuteOnly = Boolean(
               session &&
-                checkIsCommute(session) &&
-                (!session.secondaryActivities ||
-                  session.secondaryActivities.every((s: any) =>
-                    checkIsCommute(s),
-                  )),
+              checkIsCommute(session) &&
+              (!session.secondaryActivities ||
+                session.secondaryActivities.every((s: any) =>
+                  checkIsCommute(s),
+                )),
             );
             const isDone = session?.status === "done" && !isCommuteOnly;
             const isRest = session?.isRestDay || session?.status === "rest";
@@ -657,11 +660,11 @@ export default function CalendarScreen() {
                 const session = monthWorkouts[cell.dateKey];
                 const isCommuteOnly = Boolean(
                   session &&
-                    checkIsCommute(session) &&
-                    (!session.secondaryActivities ||
-                      session.secondaryActivities.every((s: any) =>
-                        checkIsCommute(s),
-                      )),
+                  checkIsCommute(session) &&
+                  (!session.secondaryActivities ||
+                    session.secondaryActivities.every((s: any) =>
+                      checkIsCommute(s),
+                    )),
                 );
                 const isDone = session?.status === "done" && !isCommuteOnly;
                 const isUpcoming =
@@ -1101,8 +1104,7 @@ export default function CalendarScreen() {
                 activeDisplayActivity?.actualCalories !== undefined ||
                 activeDisplayActivity?.tss !== undefined) && (
                 <View style={styles.realSecondaryRow}>
-                  {activeDisplayActivity.actualElevationGain !==
-                    undefined && (
+                  {activeDisplayActivity.actualElevationGain !== undefined && (
                     <Text style={styles.realSecondaryTag}>
                       ⛰️ +{activeDisplayActivity.actualElevationGain} m D+
                     </Text>
@@ -1264,9 +1266,7 @@ export default function CalendarScreen() {
             activeDisplayActivity?.targetZoneSegments &&
             activeDisplayActivity.targetZoneSegments.length > 0 && (
               <HeartRateZoneBar
-                label={
-                  activeDisplayActivity.targetZoneLabel || "Zone Cardio"
-                }
+                label={activeDisplayActivity.targetZoneLabel || "Zone Cardio"}
                 bpm={
                   isDoneSession && activeDisplayActivity.actualAvgHeartRate
                     ? `${activeDisplayActivity.actualAvgHeartRate} bpm moy (cible ${activeDisplayActivity.targetZoneBpm})`
@@ -1358,7 +1358,9 @@ export default function CalendarScreen() {
                   size={20}
                   color={Colors.primary}
                 />
-                <Text style={styles.modalTitle}>Lexique & Métriques Sportives</Text>
+                <Text style={styles.modalTitle}>
+                  Lexique & Métriques Sportives
+                </Text>
               </View>
               <TouchableOpacity
                 onPress={() => setShowGlossaryModal(false)}
@@ -1381,7 +1383,11 @@ export default function CalendarScreen() {
                   Training Stress Score (Charge d'effort)
                 </Text>
                 <Text style={styles.glossaryDefinition}>
-                  Indicateur qui mesure la fatigue et l'impact réel d'une séance sur ton organisme, en combinant la durée et l'intensité cardio. Plus le score est élevé, plus ton corps a besoin de récupérer (ex: footing cool = 30-40 TSS, séance intense ou sortie longue = 80-120+ TSS).
+                  Indicateur qui mesure la fatigue et l'impact réel d'une séance
+                  sur ton organisme, en combinant la durée et l'intensité
+                  cardio. Plus le score est élevé, plus ton corps a besoin de
+                  récupérer (ex: footing cool = 30-40 TSS, séance intense ou
+                  sortie longue = 80-120+ TSS).
                 </Text>
               </View>
 
@@ -1394,7 +1400,10 @@ export default function CalendarScreen() {
                   Cadence (Pas par minute)
                 </Text>
                 <Text style={styles.glossaryDefinition}>
-                  La fréquence de tes foulées en course à pied. Une cadence fluide se situe généralement entre 165 et 180 pas par minute. Une bonne cadence protège les articulations et réduit l'impact au sol.
+                  La fréquence de tes foulées en course à pied. Une cadence
+                  fluide se situe généralement entre 165 et 180 pas par minute.
+                  Une bonne cadence protège les articulations et réduit l'impact
+                  au sol.
                 </Text>
               </View>
 
@@ -1407,7 +1416,10 @@ export default function CalendarScreen() {
                   Endurance Fondamentale
                 </Text>
                 <Text style={styles.glossaryDefinition}>
-                  L'allure reine de 80% de ton volume d'entraînement. C'est une intensité où tu peux respirer facilement et discuter sans être essoufflé. Elle apprend à ton corps à brûler les graisses et fortifie ton cœur sans fatigue toxique.
+                  L'allure reine de 80% de ton volume d'entraînement. C'est une
+                  intensité où tu peux respirer facilement et discuter sans être
+                  essoufflé. Elle apprend à ton corps à brûler les graisses et
+                  fortifie ton cœur sans fatigue toxique.
                 </Text>
               </View>
 
@@ -1420,7 +1432,11 @@ export default function CalendarScreen() {
                   Zones 3–4 (Seuil Lactique)
                 </Text>
                 <Text style={styles.glossaryDefinition}>
-                  L'allure de course "vite mais maîtrisée". C'est l'intensité limite à laquelle tes muscles produisent du lactate à la même vitesse que ton corps peut l'éliminer. Travailler à cette allure recule le mur de fatigue et améliore ta vitesse de croisière.
+                  L'allure de course "vite mais maîtrisée". C'est l'intensité
+                  limite à laquelle tes muscles produisent du lactate à la même
+                  vitesse que ton corps peut l'éliminer. Travailler à cette
+                  allure recule le mur de fatigue et améliore ta vitesse de
+                  croisière.
                 </Text>
               </View>
 
@@ -1429,11 +1445,12 @@ export default function CalendarScreen() {
                 <View style={styles.glossaryBadge}>
                   <Text style={styles.glossaryBadgeText}>Allure</Text>
                 </View>
-                <Text style={styles.glossaryTermTitle}>
-                  Allure min/km
-                </Text>
+                <Text style={styles.glossaryTermTitle}>Allure min/km</Text>
                 <Text style={styles.glossaryDefinition}>
-                  Le temps en minutes et secondes nécessaire pour parcourir un kilomètre. Contrairement à la vitesse en km/h, l'allure permet de réguler avec précision son effort (ex: 5:00/km correspond à 12,0 km/h, 4:30/km à 13,3 km/h).
+                  Le temps en minutes et secondes nécessaire pour parcourir un
+                  kilomètre. Contrairement à la vitesse en km/h, l'allure permet
+                  de réguler avec précision son effort (ex: 5:00/km correspond à
+                  12,0 km/h, 4:30/km à 13,3 km/h).
                 </Text>
               </View>
             </ScrollView>

@@ -176,7 +176,8 @@ function buildLocalGeneratedPlan(
     {
       name: "Phase 1 : Socle Foncier & Démarrage Doux (+10%/sem)",
       weeksRangeLabel: `Semaines 1 à ${p1End}`,
-      focus: "Démarrage progressif sans choc de volume, consolidation de la base aérobie Zone 2",
+      focus:
+        "Démarrage progressif sans choc de volume, consolidation de la base aérobie Zone 2",
       weekType: "Endurance fondamentale & Volume progressif",
       avgKm: Math.round(baseKm * 0.95),
       sessionsPerWeek: 4,
@@ -184,7 +185,8 @@ function buildLocalGeneratedPlan(
     {
       name: "Phase 2 : Développement Spécifique Marathon & Seuil",
       weeksRangeLabel: `Semaines ${p1End + 1} à ${p2End}`,
-      focus: "Intégration des blocs à allure marathon (4:58/km) et seuil anaérobie avec cycle 3:1",
+      focus:
+        "Intégration des blocs à allure marathon (4:58/km) et seuil anaérobie avec cycle 3:1",
       weekType: "Fractions tempo & Allure spécifique 3h30",
       avgKm: Math.round(baseKm * 1.3),
       sessionsPerWeek: 4,
@@ -192,7 +194,8 @@ function buildLocalGeneratedPlan(
     {
       name: "Phase 3 : Pic de Volume & Sorties Longues Clés",
       weeksRangeLabel: `Semaines ${p2End + 1} à ${p3End}`,
-      focus: "Volume maximal (52–56 km) et grandes sorties longues (20–26 km) avec ravitaillement",
+      focus:
+        "Volume maximal (52–56 km) et grandes sorties longues (20–26 km) avec ravitaillement",
       weekType: "Pic de volume & Sortie longue clé",
       avgKm: Math.round(baseKm * 1.6),
       sessionsPerWeek: 4,
@@ -200,7 +203,8 @@ function buildLocalGeneratedPlan(
     {
       name: "Phase 4 : Affûtage, Surcompensation & Jour J",
       weeksRangeLabel: `Semaines ${p3End + 1} à ${totalWeeks}`,
-      focus: "Baisse progressive du volume (-25% à -40%), maintien de l'intensité et fraîcheur maximale",
+      focus:
+        "Baisse progressive du volume (-25% à -40%), maintien de l'intensité et fraîcheur maximale",
       weekType: "Affûtage & Marathon Officiel (3h30)",
       avgKm: Math.round(baseKm * 0.9),
       sessionsPerWeek: 3,
@@ -440,8 +444,7 @@ export const onboardingService = {
         finalData?.weeksToGenerate ||
         goalAnalysis?.extractedGoal?.weeksRemaining ||
         16;
-      const baseKm =
-        finalData?.stravaSixMonthsSummary?.recent4WeeksAvgKm || 28;
+      const baseKm = finalData?.stravaSixMonthsSummary?.recent4WeeksAvgKm || 28;
       const targetRaceDate =
         finalData?.targetRaceDate ||
         goalAnalysis?.extractedGoal?.raceDate ||

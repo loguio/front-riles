@@ -1,0 +1,9 @@
+# Prettier ignore — keep format:check fast and deterministic
+node_modules/
+.expo/
+dist/
+web-build/
+coverage/
+.cache/
+package-lock.json
+*.md

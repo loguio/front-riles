@@ -3,7 +3,7 @@ import { INITIAL_COMMUNITY_RUNS, INITIAL_CHALLENGE } from "../mock/mockData";
 import { simulateNetwork } from "./api";
 
 let memoryRuns: CommunityRun[] = [...INITIAL_COMMUNITY_RUNS];
-let memoryChallenge: MonthlyChallenge = { ...INITIAL_CHALLENGE };
+const memoryChallenge: MonthlyChallenge = { ...INITIAL_CHALLENGE };
 
 export const communityService = {
   /**
