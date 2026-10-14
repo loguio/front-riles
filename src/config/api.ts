@@ -29,7 +29,8 @@ function resolveBaseUrl(): string {
 
 export const API_CONFIG = {
   baseUrl: resolveBaseUrl(),
-  defaultUserId: "user-01",
+  // RILES-017 : aucune identité de repli. Sans session réelle, les appels
+  // API échouent (cf. apiClient) au lieu d'envoyer un id codé en dur.
   timeoutMs: 8000,
   headers: {
     "Content-Type": "application/json",
@@ -41,7 +42,7 @@ export const API_CONFIG = {
  * Permet de modifier dynamiquement la baseURL au runtime (ex: pour cibler une IP locale sur appareil physique)
  */
 let dynamicBaseUrl = API_CONFIG.baseUrl;
-let currentUserId = API_CONFIG.defaultUserId;
+let currentUserId: string | null = null;
 let currentAuthToken: string | null = null;
 
 export const getBaseUrl = (): string => dynamicBaseUrl;
@@ -49,8 +50,8 @@ export const setBaseUrl = (url: string): void => {
   dynamicBaseUrl = url.replace(/\/+$/, ""); // retire trailing slash
 };
 
-export const getUserId = (): string => currentUserId;
-export const setUserId = (userId: string): void => {
+export const getUserId = (): string | null => currentUserId;
+export const setUserId = (userId: string | null): void => {
   currentUserId = userId;
 };
 

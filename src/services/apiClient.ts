@@ -74,19 +74,34 @@ class ApiClient {
             setUserId(currentUid);
           }
         }
-      } catch (authErr) {
-        // En cas d'erreur lors de la lecture locale de session, on continue sans bloquer
+      } catch (_authErr) {
+        // Lecture locale de session impossible : on dégrade en erreur
+        // d'authentification ci-dessous — aucune identité n'est inventée.
       }
     }
 
-    // Préparation des headers avec Bearer Token & User ID
+    // RILES-017 : aucune requête sans session réelle. L'identité de repli a
+    // été supprimée ; le backend dérive l'utilisateur du JWT seul.
+    if (!token) {
+      throw new ApiError(
+        "Session authentifiée requise : reconnecte-toi pour continuer.",
+        401,
+        null,
+        false,
+      );
+    }
+
+    // Préparation des headers : token obligatoire, identifiant réel seulement
     const requestHeaders: Record<string, string> = {
       ...API_CONFIG.headers,
-      "x-user-id": currentUid,
       ...(headers as Record<string, string>),
     };
 
-    if (token && !requestHeaders["Authorization"]) {
+    if (currentUid) {
+      requestHeaders["x-user-id"] = currentUid;
+    }
+
+    if (!requestHeaders["Authorization"]) {
       requestHeaders["Authorization"] = `Bearer ${token}`;
     }
 

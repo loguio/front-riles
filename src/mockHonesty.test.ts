@@ -30,6 +30,25 @@ function collectSourceFiles(dir: string): string[] {
 }
 
 describe("mock honesty guards", () => {
+  it("no hardcoded fallback identity survives under src/ (RILES-017)", () => {
+    const forbidden = [
+      ["user", "01"].join("-"),
+      ["default", "User", "Id"].join(""),
+    ];
+    const offenders: string[] = [];
+
+    for (const file of collectSourceFiles(resolve(repoRoot, "src"))) {
+      const content = readFileSync(file, "utf8");
+      for (const literal of forbidden) {
+        if (content.includes(literal)) {
+          offenders.push(`${file} contains ${literal}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
   it("the pre-scripted chat conversation fixture is gone (RILES-016)", () => {
     const fixtureName = ["INITIAL", "CHAT", "MESSAGES"].join("_");
     const offenders = collectSourceFiles(resolve(repoRoot, "src")).filter(
