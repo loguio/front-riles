@@ -21,6 +21,8 @@ import {
 import { Card } from "../src/components/ui/Card";
 import { useApp } from "../src/context/AppContext";
 import { workoutService, analytics } from "../src/services";
+import { ErrorState } from "../src/components/ui/ErrorState";
+import { toUserFacingError } from "../src/context/appData";
 
 export default function PlanRoadmapScreen() {
   const insets = useSafeAreaInsets();
@@ -28,6 +30,7 @@ export default function PlanRoadmapScreen() {
   const { user, setActiveWeek, setSelectedDateKey } = useApp();
 
   const [roadmap, setRoadmap] = useState<any>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [expandedWeekKey, setExpandedWeekKey] = useState<string | null>(null);
@@ -35,6 +38,7 @@ export default function PlanRoadmapScreen() {
 
   const loadRoadmap = useCallback(async () => {
     try {
+      setLoadError(null);
       const data = await workoutService.getPlanRoadmap();
       if (data) {
         setRoadmap(data);
@@ -46,9 +50,14 @@ export default function PlanRoadmapScreen() {
         } else if (data.weeklyBreakdown?.length > 0) {
           setExpandedWeekKey(data.weeklyBreakdown[0].weekKey);
         }
+      } else {
+        // Réponse vide : on l'affiche comme erreur plutôt que comme roadmap.
+        setLoadError("Le serveur n'a renvoyé aucune roadmap.");
       }
     } catch (err) {
+      // RILES-015 : aucune roadmap de secours, l'état d'erreur s'affiche.
       console.warn("Failed to load roadmap:", err);
+      setLoadError(toUserFacingError(err));
     } finally {
       setIsLoading(false);
     }
@@ -82,6 +91,22 @@ export default function PlanRoadmapScreen() {
         <Text style={styles.loadingText}>
           Chargement de ta roadmap de préparation...
         </Text>
+      </View>
+    );
+  }
+
+  // RILES-015 : roadmap indisponible => état d'erreur avec Réessayer.
+  if (!roadmap) {
+    return (
+      <View style={[styles.loadingScreen, { paddingTop: insets.top }]}>
+        <ErrorState
+          title="Roadmap indisponible"
+          message={
+            loadError ||
+            "Le serveur n'a pas répondu. Vérifie ta connexion puis réessaie."
+          }
+          onRetry={loadRoadmap}
+        />
       </View>
     );
   }

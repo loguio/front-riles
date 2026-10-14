@@ -43,10 +43,7 @@ import {
   WeeklyPlanBreakdown,
 } from "../src/types";
 import { onboardingService, analytics } from "../src/services";
-import {
-  CONNECTED_APPS_CATALOG,
-  DEFAULT_STRAVA_SIX_MONTHS_SUMMARY,
-} from "../src/mock/mockData";
+import { CONNECTED_APPS_CATALOG } from "../src/mock/mockData";
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
@@ -86,6 +83,10 @@ export default function OnboardingScreen() {
   const [stravaSummary, setStravaSummary] =
     useState<StravaSixMonthsSummary | null>(null);
   const [isSyncingStrava, setIsSyncingStrava] = useState<boolean>(false);
+  // RILES-015 : erreurs backend visibles (aucun repli silencieux)
+  const [serviceErrorMessage, setServiceErrorMessage] = useState<string | null>(
+    null,
+  );
   const [selectedPlan, setSelectedPlan] = useState<"basic" | "pro">("pro");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [onboardingViewMode, setOnboardingViewMode] = useState<
@@ -132,7 +133,8 @@ export default function OnboardingScreen() {
       try {
         const [apps, state] = await Promise.all([
           onboardingService.getAppsCatalog(),
-          onboardingService.getOnboardingState().catch(() => null),
+          // RILES-015 : un échec n'est pas masqué par un `catch(() => null)`
+          onboardingService.getOnboardingState(),
         ]);
         setAppsCatalog(apps);
         if (state) {
@@ -146,7 +148,12 @@ export default function OnboardingScreen() {
           }
         }
       } catch (err) {
+        // RILES-015 : l'échec est affiché, aucune donnée de secours n'est
+        // substituée au catalogue renvoyé par le serveur.
         console.warn("Failed to load initial onboarding data:", err);
+        setServiceErrorMessage(
+          "Impossible de charger l'onboarding. Vérifie ta connexion puis réessaie.",
+        );
       }
     }
     loadInitialData();
@@ -431,8 +438,13 @@ export default function OnboardingScreen() {
         setGoalAnalysis(recalibratedAnalysis);
       }
     } catch (err) {
-      console.warn("Strava 6-month sync fallback:", err);
-      setStravaSummary(DEFAULT_STRAVA_SIX_MONTHS_SUMMARY);
+      // RILES-015 : plus de résumé Strava local de secours — on affiche
+      // l'erreur et on ne prétend pas que les données ont été synchronisées.
+      console.warn("Strava 6-month sync failed:", err);
+      setStravaSummary(null);
+      setServiceErrorMessage(
+        "Synchronisation Strava impossible. Réessaie une fois la connexion rétablie.",
+      );
     } finally {
       setIsSyncingStrava(false);
     }
@@ -479,10 +491,11 @@ export default function OnboardingScreen() {
         prev.includes("strava") ? prev : [...prev, "strava"],
       );
     } catch (err) {
+      // RILES-015 : pas de seconde tentative silencieuse qui masquerait
+      // l'échec — on affiche l'erreur à l'utilisateur.
       console.warn("Strava connect error:", err);
-      await triggerStravaSixMonthsSync();
-      setConnectedAppIds((prev) =>
-        prev.includes("strava") ? prev : [...prev, "strava"],
+      setServiceErrorMessage(
+        "Connexion Strava impossible. Réessaie dans quelques instants.",
       );
     } finally {
       setIsSyncingStrava(false);
@@ -522,7 +535,12 @@ export default function OnboardingScreen() {
             extractedRules: analysis.extractedRules,
           });
         })
-        .catch((e) => console.warn("Background AI goal reformulation:", e));
+        .catch((e) => {
+          console.warn("Background AI goal reformulation:", e);
+          setServiceErrorMessage(
+            "Impossible d'enregistrer ton objectif. Vérifie ta connexion.",
+          );
+        });
     } else if (step === 3) {
       analytics.trackEvent("onboarding_sports_validated", {
         sports: selectedSports,
@@ -542,7 +560,12 @@ export default function OnboardingScreen() {
           selectedPlan,
           extractedRules: goalAnalysis?.extractedRules,
         })
-        .catch((e) => console.warn("Background step save:", e));
+        .catch((e) => {
+          console.warn("Background step save:", e);
+          setServiceErrorMessage(
+            "Impossible d'enregistrer cette étape. Vérifie ta connexion.",
+          );
+        });
     } else if (step === 4) {
       analytics.trackEvent("onboarding_apps_validated", {
         apps: connectedAppIds,
@@ -560,7 +583,12 @@ export default function OnboardingScreen() {
           extractedRules: goalAnalysis?.extractedRules,
           stravaSixMonthsSummary: stravaSummary || undefined,
         })
-        .catch((e) => console.warn("Background step save:", e));
+        .catch((e) => {
+          console.warn("Background step save:", e);
+          setServiceErrorMessage(
+            "Impossible d'enregistrer cette étape. Vérifie ta connexion.",
+          );
+        });
     } else {
       onboardingService
         .saveStepData({
@@ -573,7 +601,12 @@ export default function OnboardingScreen() {
           extractedRules: goalAnalysis?.extractedRules,
           stravaSixMonthsSummary: stravaSummary || undefined,
         })
-        .catch((e) => console.warn("Background step save:", e));
+        .catch((e) => {
+          console.warn("Background step save:", e);
+          setServiceErrorMessage(
+            "Impossible d'enregistrer cette étape. Vérifie ta connexion.",
+          );
+        });
     }
 
     if (step < 5) {
@@ -632,7 +665,7 @@ export default function OnboardingScreen() {
         isCompleted: true,
         extractedRules: goalAnalysis?.extractedRules,
         stravaSixMonthsSummary: connectedAppIds.includes("strava")
-          ? stravaSummary || DEFAULT_STRAVA_SIX_MONTHS_SUMMARY
+          ? stravaSummary || undefined
           : undefined,
       });
 
@@ -668,6 +701,11 @@ export default function OnboardingScreen() {
       }, 400);
     } catch (err) {
       console.error("Error setting up plan generation:", err);
+      setServiceErrorMessage(
+        err instanceof Error && err.message
+          ? err.message
+          : "La génération du plan a échoué. Réessaie.",
+      );
       setIsSubmitting(false);
       setOnboardingViewMode("wizard");
     }
@@ -1044,6 +1082,15 @@ export default function OnboardingScreen() {
             {/* Main Card Container */}
             <View style={styles.cardContainer}>
               <Text style={styles.stepSubtitle}>ÉTAPE {step} SUR 5</Text>
+
+              {serviceErrorMessage && (
+                <View style={styles.errorBanner}>
+                  <Feather name="alert-circle" size={16} color="#DC2626" />
+                  <Text style={styles.errorBannerText}>
+                    {serviceErrorMessage}
+                  </Text>
+                </View>
+              )}
 
               {/* ================= STEP 1: AUTH ================= */}
               {step === 1 && (

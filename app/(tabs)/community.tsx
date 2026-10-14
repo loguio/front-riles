@@ -18,11 +18,18 @@ import {
 import { Card } from "../../src/components/ui/Card";
 import { Badge } from "../../src/components/ui/Badge";
 import { Button } from "../../src/components/ui/Button";
+import { ErrorBanner } from "../../src/components/ui/ErrorState";
 import { useApp } from "../../src/context/AppContext";
 
 export default function CommunityScreen() {
   const insets = useSafeAreaInsets();
-  const { communityRuns, challenge, toggleCommunityRun } = useApp();
+  const {
+    communityRuns,
+    challenge,
+    toggleCommunityRun,
+    errorMessage,
+    refreshAllData,
+  } = useApp();
   const [selectedFilter, setSelectedFilter] = useState<
     "runs" | "challenges" | "members"
   >("runs");
@@ -39,6 +46,11 @@ export default function CommunityScreen() {
       ]}
       showsVerticalScrollIndicator={false}
     >
+      {/* RILES-015 : erreur de chargement visible + retry, aucune donnée locale affichée */}
+      {errorMessage ? (
+        <ErrorBanner message={errorMessage} onRetry={refreshAllData} />
+      ) : null}
+
       {/* 1. Header */}
       <View style={styles.header}>
         <View>
@@ -235,11 +247,44 @@ export default function CommunityScreen() {
           </View>
         </Card>
       )}
+
+      {/* État vide explicite (pas de sorties renvoyées par le serveur) */}
+      {communityRuns.length === 0 && !errorMessage && (
+        <View style={styles.emptyState}>
+          <Ionicons
+            name="people-outline"
+            size={26}
+            color={Colors.textSecondary}
+          />
+          <Text style={styles.emptyStateTitle}>Aucune sortie programmée</Text>
+          <Text style={styles.emptyStateText}>
+            Les prochaines sorties du club apparaîtront ici dès qu'elles seront
+            organisées.
+          </Text>
+        </View>
+      )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  emptyState: {
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: Spacing.xxl,
+    paddingHorizontal: Spacing.xl,
+  },
+  emptyStateTitle: {
+    fontSize: Typography.sizes.md,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+  },
+  emptyStateText: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+  },
   screen: {
     flex: 1,
     backgroundColor: Colors.background,

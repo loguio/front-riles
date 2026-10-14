@@ -1,11 +1,8 @@
 import {
-  UserProfile,
   WorkoutSession,
   ConnectedApp,
   ChatMessage,
   QuickPrompt,
-  CommunityRun,
-  MonthlyChallenge,
   StravaSixMonthsSummary,
 } from "../types";
 import { Colors } from "../constants/theme";
@@ -42,52 +39,6 @@ export const DEFAULT_STRAVA_SIX_MONTHS_SUMMARY: StravaSixMonthsSummary = {
     "Connecte ton compte Strava pour synchroniser automatiquement l'ensemble de tes activités réelles des 6 derniers mois et calibrer tes allures sur-mesure.",
   syncedAt: new Date().toISOString(),
   sourceMode: "strava_history_import",
-};
-
-export const INITIAL_USER: UserProfile = {
-  id: "user-01",
-  name: "Marius",
-  email: "marius@riles.app",
-  initials: "ML",
-  readinessScore: 85,
-  activeGoal: {
-    title: "Objectif Course à pied",
-    target: "Courir avec régularité",
-    raceDate: "Dans 16 semaines (4 mois)",
-    weeksRemaining: 16,
-    progressPercentage: 10,
-  },
-  stats: {
-    activeWeeks: 0,
-    totalKm: 0,
-    completedRaces: 0,
-  },
-  rules: [
-    {
-      id: "rule-1",
-      title: "Rester régulier",
-      description: "La constance avant l’intensité.",
-      icon: "bullseye-arrow",
-    },
-    {
-      id: "rule-2",
-      title: "Viser juste",
-      description: "Chaque effort compte pour la suite.",
-      icon: "trophy-outline",
-    },
-    {
-      id: "rule-3",
-      title: "Garder le plaisir",
-      description: "S’entraîner, sans oublier pourquoi.",
-      icon: "dumbbell",
-    },
-  ],
-  connectedApps: [],
-  planType: "pro",
-  atlFatigue: 28,
-  ctlFitness: 30,
-  tsbForm: 2,
-  stravaSixMonthsSummary: undefined,
 };
 
 export const CONNECTED_APPS_CATALOG: ConnectedApp[] = [
@@ -1936,45 +1887,10 @@ export const QUICK_PROMPTS: QuickPrompt[] = [
   },
 ];
 
-export const INITIAL_COMMUNITY_RUNS: CommunityRun[] = [
-  {
-    id: "run-1",
-    tag: "PROCHAINE SORTIE",
-    location: "Île de Nantes",
-    title: "Sortie collective du jeudi soir",
-    description:
-      "Allure cool et fractionné doux le long des bords de Loire. Tous niveaux bienvenus !",
-    dateLabel: "Jeu. 15 Oct",
-    timeLabel: "19h00",
-    attendeesCount: 12,
-    isUserRegistered: false,
-    category: "RUNNING CLUB NANTES",
-    pace: "5:30/km",
-    distance: "8,5 km",
-  },
-  {
-    id: "run-2",
-    tag: "SORTIE LONGUE",
-    location: "Bords de l’Erdre",
-    title: "Sortie Longue Endurance",
-    description:
-      "18 km à allure fondamentale (5:45/km). Ravitaillement convivial au retour.",
-    dateLabel: "Dim. 18 Oct",
-    timeLabel: "09h30",
-    attendeesCount: 24,
-    isUserRegistered: true,
-    category: "ENDURANCE COLLECTIVE",
-    pace: "5:45/km",
-    distance: "18 km",
-  },
-];
-
-export const INITIAL_CHALLENGE: MonthlyChallenge = {
-  id: "chal-oct",
-  badge: "DÉFI OCTOBRE",
-  title: "100 km sans culpabilité",
-  description:
-    "Avance à ton allure. Ce qui compte, c'est la régularité, pas la vitesse.",
-  currentKm: 62,
-  targetKm: 100,
-};
+// RILES-015 : les graines de la communauté ne sont plus importées depuis
+// src/mock/ par les services (voir src/services/communitySeed.ts) ;
+// elles sont ré-exportées ici pour les tests existants.
+export {
+  INITIAL_COMMUNITY_RUNS,
+  INITIAL_CHALLENGE,
+} from "../services/communitySeed";

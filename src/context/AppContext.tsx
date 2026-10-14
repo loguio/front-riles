@@ -29,6 +29,7 @@ import {
   getWeekNumber,
   getDaysOfWeek,
 } from "../utils/dateUtils";
+import { loadAppData, toUserFacingError } from "./appData";
 
 interface AppContextType {
   // State
@@ -121,43 +122,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsLoading(true);
       setErrorMessage(null);
 
-      // Synchronisation incrémentale Strava (Safety Net à l'ouverture / pull-to-refresh)
-      await workoutService.syncRecentActivities(7).catch(() => {});
+      // Synchronisation incrémentale Strava : best-effort, explicite.
+      // En cas d'échec on continue sans données Strava fraîches — aucune
+      // donnée n'est fabriquée et l'erreur reste visible via console.
+      try {
+        await workoutService.syncRecentActivities(7);
+      } catch (syncError) {
+        console.warn("Strava incremental sync skipped:", syncError);
+      }
 
-      const [
-        onboardingState,
-        profile,
-        weekWorkouts,
-        monthData,
-        messages,
-        prompts,
-        runs,
-        monthChallenge,
-      ] = await Promise.all([
-        onboardingService.getOnboardingState(),
-        userService.getProfile(),
-        workoutService.getWeekWorkouts(currentWeek, currentYear),
-        workoutService.getMonthWorkouts(currentMonth, currentYear),
-        chatService.getChatHistory(),
-        chatService.getQuickPrompts(),
-        communityService.getCommunityRuns(),
-        communityService.getMonthlyChallenge(),
-      ]);
+      const data = await loadAppData(
+        {
+          getOnboardingState: () => onboardingService.getOnboardingState(),
+          getProfile: () => userService.getProfile(),
+          getWeekWorkouts: (week, year) =>
+            workoutService.getWeekWorkouts(week, year),
+          getMonthWorkouts: (month, year) =>
+            workoutService.getMonthWorkouts(month, year),
+          getChatHistory: () => chatService.getChatHistory(),
+          getQuickPrompts: () => chatService.getQuickPrompts(),
+          getCommunityRuns: () => communityService.getCommunityRuns(),
+          getMonthlyChallenge: () => communityService.getMonthlyChallenge(),
+        },
+        { week: currentWeek, year: currentYear, month: currentMonth },
+      );
 
-      setIsOnboardingCompleted(onboardingState.isCompleted);
-      setUser(profile);
-      setWorkouts(weekWorkouts);
-      setMonthWorkouts(monthData);
-      setChatMessages(messages);
-      setQuickPrompts(prompts);
-      setCommunityRuns(runs);
-      setChallenge(monthChallenge);
+      setIsOnboardingCompleted(data.isOnboardingCompleted);
+      setUser(data.user);
+      setWorkouts(data.workouts);
+      setMonthWorkouts(data.monthWorkouts);
+      setChatMessages(data.chatMessages);
+      setQuickPrompts(data.quickPrompts);
+      setCommunityRuns(data.communityRuns);
+      setChallenge(data.challenge);
 
       // Sélection de la séance par défaut (séance du jour en priorité ou première de la semaine)
       const defaultSession =
-        weekWorkouts.find((w) => w.dateKey === todayDateKey) ||
-        weekWorkouts.find((w) => w.dayNumber === currentDay) ||
-        weekWorkouts[0] ||
+        data.workouts.find((w) => w.dateKey === todayDateKey) ||
+        data.workouts.find((w) => w.dayNumber === currentDay) ||
+        data.workouts[0] ||
         null;
 
       setSelectedWorkout(defaultSession);
@@ -166,8 +169,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         setSelectedDayState(defaultSession.dayNumber);
       }
     } catch (err: any) {
+      // RILES-015 : aucun repli silencieux, l'écran affiche l'erreur + retry.
       console.error("Failed to load initial app data from backend:", err);
-      setErrorMessage(err.message || "Erreur de chargement des données");
+      setErrorMessage(toUserFacingError(err));
     } finally {
       setIsLoading(false);
     }
@@ -226,6 +230,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       } catch (err) {
         console.error("Failed to set active week:", err);
+        setErrorMessage(toUserFacingError(err));
       }
     },
     [activeYear, selectedDateKey],
@@ -242,6 +247,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         setMonthWorkouts(monthData);
       } catch (err) {
         console.error("Failed to set active month:", err);
+        setErrorMessage(toUserFacingError(err));
       }
     },
     [activeYear],
@@ -259,27 +265,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
       let currentWorkouts = workouts;
 
-      if (targetWeek !== activeWeek) {
-        setActiveWeekState(targetWeek);
-        currentWorkouts = await workoutService.getWeekWorkouts(
-          targetWeek,
-          year,
-        );
-        setWorkouts(currentWorkouts);
+      try {
+        if (targetWeek !== activeWeek) {
+          setActiveWeekState(targetWeek);
+          currentWorkouts = await workoutService.getWeekWorkouts(
+            targetWeek,
+            year,
+          );
+          setWorkouts(currentWorkouts);
+        }
+
+        if (month !== activeMonth) {
+          setActiveMonthState(month);
+          const monthData = await workoutService.getMonthWorkouts(month, year);
+          setMonthWorkouts(monthData);
+        }
+
+        const session =
+          currentWorkouts.find((w) => w.dateKey === targetDateKey) ||
+          (await workoutService.getWorkoutByDateKey(targetDateKey)) ||
+          null;
+
+        setSelectedWorkout(session);
+      } catch (err) {
+        // RILES-015 : sélection maintenue, mais l'erreur est affichée
+        // (aucune séance fabriquée pour remplacer la réponse du serveur).
+        console.error("Failed to select day:", err);
+        setErrorMessage(toUserFacingError(err));
       }
-
-      if (month !== activeMonth) {
-        setActiveMonthState(month);
-        const monthData = await workoutService.getMonthWorkouts(month, year);
-        setMonthWorkouts(monthData);
-      }
-
-      const session =
-        currentWorkouts.find((w) => w.dateKey === targetDateKey) ||
-        (await workoutService.getWorkoutByDateKey(targetDateKey)) ||
-        null;
-
-      setSelectedWorkout(session);
     },
     [activeMonth, activeYear, activeWeek, workouts],
   );
@@ -296,12 +309,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   // Soumission de la note RPE au backend
   const submitRpe = useCallback(
     async (rating: number): Promise<RpeCheckIn> => {
-      const result = await workoutService.submitRpeCheckIn(
-        rating,
-        selectedWorkout?.id,
-      );
-      setRpeCheckIn(result);
-      return result;
+      try {
+        const result = await workoutService.submitRpeCheckIn(
+          rating,
+          selectedWorkout?.id,
+        );
+        setRpeCheckIn(result);
+        setErrorMessage(null);
+        return result;
+      } catch (err) {
+        // RILES-015 : pas de retour RPE fabriqué, l'erreur remonte.
+        setErrorMessage(toUserFacingError(err));
+        throw err;
+      }
     },
     [selectedWorkout?.id],
   );
@@ -379,7 +399,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           }
         }
       } catch (err) {
+        // RILES-015 : aucune réponse de coach fabriquée localement.
         console.error("Chat error:", err);
+        setErrorMessage(toUserFacingError(err));
       } finally {
         setIsCoachTyping(false);
       }
@@ -425,7 +447,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           setSelectedWorkout(updatedSelected);
         }
       } catch (err) {
+        // RILES-015 : pas de plan local de secours, l'erreur s'affiche.
         console.error("Failed to generate multi-week plan:", err);
+        setErrorMessage(toUserFacingError(err));
       } finally {
         setIsGeneratingPlan(false);
       }
@@ -543,6 +567,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         );
       } catch (err) {
         console.error("Failed to apply coach action:", err);
+        setErrorMessage(toUserFacingError(err));
       }
     },
     [selectedDay, selectedDateKey],
@@ -557,6 +582,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       );
     } catch (err) {
       console.error("Failed to toggle run RSVP:", err);
+      setErrorMessage(toUserFacingError(err));
     }
   }, []);
 
@@ -588,9 +614,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           setSelectedDateKey(defaultSession.dateKey);
           setSelectedDayState(defaultSession.dayNumber);
         }
+        setErrorMessage(null);
         return result;
       } catch (err) {
+        // RILES-015 : aucun plan généré localement en cas d'échec.
         console.error("Failed to complete onboarding:", err);
+        setErrorMessage(toUserFacingError(err));
+        throw err;
       }
     },
     [activeWeek, activeMonth, activeYear],
@@ -611,6 +641,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       );
     } catch (err) {
       console.error("Failed to reset onboarding:", err);
+      setErrorMessage(toUserFacingError(err));
       setIsOnboardingCompleted(false);
     }
   }, []);

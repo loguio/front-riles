@@ -1,5 +1,5 @@
 import { CommunityRun, MonthlyChallenge } from "../types";
-import { INITIAL_COMMUNITY_RUNS, INITIAL_CHALLENGE } from "../mock/mockData";
+import { INITIAL_COMMUNITY_RUNS, INITIAL_CHALLENGE } from "./communitySeed";
 import { simulateNetwork } from "./api";
 
 let memoryRuns: CommunityRun[] = [...INITIAL_COMMUNITY_RUNS];
