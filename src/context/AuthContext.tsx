@@ -10,6 +10,11 @@ import { Session, User, AuthError } from "@supabase/supabase-js";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { supabase } from "../config/supabase";
+import {
+  authStateFor,
+  signInWithPasswordFlow,
+  signUpWithPasswordFlow,
+} from "./authFlow";
 import { setAuthToken, setUserId, API_CONFIG } from "../config/api";
 import { analytics } from "../services/analytics";
 
@@ -42,9 +47,6 @@ export interface AuthContextType {
   }>;
   signInWithGoogle: () => Promise<OAuthResult>;
   signInWithApple: () => Promise<OAuthResult>;
-  signInWithDemoAccount: (
-    role?: "google" | "apple" | "marius",
-  ) => Promise<{ error: Error | null; session: Session | null }>;
   signOut: () => Promise<{ error: AuthError | null }>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
 }
@@ -110,18 +112,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Synchronise le token pour le client API NestJS et PostHog
   const handleSessionChange = useCallback((newSession: Session | null) => {
-    setSession(newSession);
-    setUser(newSession?.user ?? null);
+    const nextState = authStateFor(newSession);
+    setSession(nextState.session);
+    setUser(nextState.user);
 
-    if (newSession?.access_token && newSession.user) {
-      setAuthToken(newSession.access_token);
-      setUserId(newSession.user.id);
-      analytics.identifyUser(newSession.user.id, {
-        email: newSession.user.email,
+    if (nextState.session?.access_token && nextState.user) {
+      setAuthToken(nextState.session.access_token);
+      setUserId(nextState.user.id);
+      analytics.identifyUser(nextState.user.id, {
+        email: nextState.user.email,
         name:
-          newSession.user.user_metadata?.full_name ||
-          newSession.user.user_metadata?.name,
-        provider: newSession.user.app_metadata?.provider || "email",
+          nextState.user.user_metadata?.full_name ||
+          nextState.user.user_metadata?.name,
+        provider: nextState.user.app_metadata?.provider || "email",
       });
     } else {
       setAuthToken(null);
@@ -179,161 +182,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [handleSessionChange]);
 
   // Connexion Email / Mot de passe
+  // RILES-004 : en cas d'échec, aucune session n'est fabriquée — l'erreur
+  // réelle de Supabase remonte et l'utilisateur reste déconnecté.
   const signInWithEmail = async (email: string, password: string) => {
-    try {
-      const trimmedEmail = email.trim().toLowerCase();
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: trimmedEmail,
-        password,
-      });
+    const { error, session } = await signInWithPasswordFlow(
+      supabase.auth,
+      email,
+      password,
+    );
 
-      if (data.session) {
-        handleSessionChange(data.session);
-        return { error: null, session: data.session };
-      }
-
-      // En mode dev / test : si erreur d'email non confirmé ou compte test, on crée une session active immédiate
-      if (
-        error &&
-        (error.message.includes("Email not confirmed") ||
-          error.message.includes("email_not_confirmed") ||
-          error.message.includes("Invalid login credentials"))
-      ) {
-        const devUser: User = {
-          id: `dev-user-${Date.now()}`,
-          aud: "authenticated",
-          role: "authenticated",
-          email: trimmedEmail,
-          email_confirmed_at: new Date().toISOString(),
-          phone: "",
-          confirmed_at: new Date().toISOString(),
-          last_sign_in_at: new Date().toISOString(),
-          app_metadata: { provider: "email" },
-          user_metadata: {
-            name: trimmedEmail.split("@")[0],
-            full_name: trimmedEmail.split("@")[0],
-          },
-          identities: [],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-
-        const devSession: Session = {
-          access_token: `dev-token-${Date.now()}`,
-          refresh_token: `dev-refresh-token-${Date.now()}`,
-          expires_in: 86400,
-          token_type: "bearer",
-          user: devUser,
-        };
-
-        handleSessionChange(devSession);
-        return { error: null, session: devSession };
-      }
-
-      return { error: error as AuthError, session: null };
-    } catch (err: any) {
-      return { error: err as AuthError, session: null };
+    if (session) {
+      handleSessionChange(session);
     }
+
+    return { error, session };
   };
 
   // Inscription Email / Mot de passe
+  // RILES-004 : pas de session de secours. Si Supabase exige la confirmation
+  // par email, on le signale (needsEmailConfirmation) sans connecter l'user.
   const signUpWithEmail = async (
     email: string,
     password: string,
     name?: string,
   ) => {
-    try {
-      const trimmedEmail = email.trim().toLowerCase();
-      const displayName = name || trimmedEmail.split("@")[0];
+    const { error, session, needsEmailConfirmation } =
+      await signUpWithPasswordFlow(supabase.auth, email, password, name);
 
-      const { data, error } = await supabase.auth.signUp({
-        email: trimmedEmail,
-        password,
-        options: {
-          data: {
-            name: displayName,
-            full_name: displayName,
-          },
-        },
-      });
-
-      if (data?.session) {
-        handleSessionChange(data.session);
-        return {
-          error: null,
-          session: data.session,
-          needsEmailConfirmation: false,
-        };
-      }
-
-      // Si Supabase a créé le compte sans session (Confirm email activé sur le dashboard)
-      // ou en cas d'erreur de test, on active une session de dev pour débloquer l'onboarding immédiatement
-      const devUser: User = data?.user || {
-        id: `dev-user-${Date.now()}`,
-        aud: "authenticated",
-        role: "authenticated",
-        email: trimmedEmail,
-        email_confirmed_at: new Date().toISOString(),
-        phone: "",
-        confirmed_at: new Date().toISOString(),
-        last_sign_in_at: new Date().toISOString(),
-        app_metadata: { provider: "email" },
-        user_metadata: { name: displayName, full_name: displayName },
-        identities: [],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      const devSession: Session = {
-        access_token: `dev-token-${Date.now()}`,
-        refresh_token: `dev-refresh-token-${Date.now()}`,
-        expires_in: 86400,
-        token_type: "bearer",
-        user: devUser,
-      };
-
-      handleSessionChange(devSession);
-      return {
-        error: null,
-        session: devSession,
-        needsEmailConfirmation: false,
-      };
-    } catch (err: any) {
-      const trimmedEmail = email.trim().toLowerCase();
-      const devUser: User = {
-        id: `dev-user-${Date.now()}`,
-        aud: "authenticated",
-        role: "authenticated",
-        email: trimmedEmail,
-        email_confirmed_at: new Date().toISOString(),
-        phone: "",
-        confirmed_at: new Date().toISOString(),
-        last_sign_in_at: new Date().toISOString(),
-        app_metadata: { provider: "email" },
-        user_metadata: {
-          name: name || trimmedEmail.split("@")[0],
-          full_name: name || trimmedEmail.split("@")[0],
-        },
-        identities: [],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      const devSession: Session = {
-        access_token: `dev-token-${Date.now()}`,
-        refresh_token: `dev-refresh-token-${Date.now()}`,
-        expires_in: 86400,
-        token_type: "bearer",
-        user: devUser,
-      };
-
-      handleSessionChange(devSession);
-      return {
-        error: null,
-        session: devSession,
-        needsEmailConfirmation: false,
-      };
+    if (session) {
+      handleSessionChange(session);
     }
+
+    return { error, session, needsEmailConfirmation };
   };
 
   // Traitement générique OAuth (Google / Apple)
@@ -451,93 +331,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     return performOAuth("apple");
   };
 
-  // Mode Démo / Test rapide (Permet de tester l'app sans clés OAuth configurées)
-  const signInWithDemoAccount = async (
-    role: "google" | "apple" | "marius" = "marius",
-  ) => {
-    try {
-      const demoEmail =
-        role === "google"
-          ? "marius.google@riles.app"
-          : role === "apple"
-            ? "marius.apple@riles.app"
-            : "marius@riles.app";
-      const demoPassword = "Password123!";
-      const demoName =
-        role === "google"
-          ? "Marius (Google Demo)"
-          : role === "apple"
-            ? "Marius (Apple Demo)"
-            : "Marius";
-
-      // Tentative de connexion
-      const signInRes = await supabase.auth.signInWithPassword({
-        email: demoEmail,
-        password: demoPassword,
-      });
-
-      let activeSession: Session | null = signInRes.data?.session ?? null;
-      let activeError: AuthError | null = signInRes.error;
-
-      // Si le compte n'existe pas encore, on le crée
-      if (
-        activeError &&
-        activeError.message.includes("Invalid login credentials")
-      ) {
-        const signUpRes = await supabase.auth.signUp({
-          email: demoEmail,
-          password: demoPassword,
-          options: {
-            data: {
-              name: demoName,
-              full_name: demoName,
-            },
-          },
-        });
-        activeSession = signUpRes.data.session;
-        activeError = signUpRes.error;
-      }
-
-      if (activeSession) {
-        handleSessionChange(activeSession);
-        return { error: null, session: activeSession };
-      }
-
-      // Fallback session démo instantanée si Supabase exige la confirmation par email
-      const fallbackUser: User = {
-        id: `demo-${role}-user-001`,
-        aud: "authenticated",
-        role: "authenticated",
-        email: demoEmail,
-        email_confirmed_at: new Date().toISOString(),
-        phone: "",
-        confirmed_at: new Date().toISOString(),
-        last_sign_in_at: new Date().toISOString(),
-        app_metadata: {
-          provider:
-            role === "google" ? "google" : role === "apple" ? "apple" : "email",
-        },
-        user_metadata: { name: demoName, full_name: demoName },
-        identities: [],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      const fallbackSession: Session = {
-        access_token: `demo-bearer-token-${role}`,
-        refresh_token: `demo-refresh-token-${role}`,
-        expires_in: 86400,
-        token_type: "bearer",
-        user: fallbackUser,
-      };
-
-      handleSessionChange(fallbackSession);
-      return { error: null, session: fallbackSession };
-    } catch (err: any) {
-      return { error: err, session: null };
-    }
-  };
-
   // Déconnexion
   const signOut = async () => {
     try {
@@ -577,7 +370,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         signUpWithEmail,
         signInWithGoogle,
         signInWithApple,
-        signInWithDemoAccount,
         signOut,
         resetPassword,
       }}

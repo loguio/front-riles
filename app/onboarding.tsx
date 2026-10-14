@@ -63,7 +63,6 @@ export default function OnboardingScreen() {
     signUpWithEmail,
     signInWithGoogle,
     signInWithApple,
-    signInWithDemoAccount,
     signOut,
     session,
   } = useAuth();
@@ -245,18 +244,8 @@ export default function OnboardingScreen() {
         if (Platform.OS === "web" && typeof window !== "undefined") {
           window.sessionStorage?.removeItem("riles_oauth_pending");
         }
-        // Si Apple n'est pas encore configuré sur la console Supabase, fallback transparent démo Apple
-        if (
-          result.error.message?.includes("provider is not enabled") ||
-          result.error.message?.includes("unsupported provider")
-        ) {
-          const demoRes = await signInWithDemoAccount("apple");
-          if (demoRes.session) {
-            setAuthMethod("apple");
-            setStep(2);
-            return;
-          }
-        }
+        // RILES-004 : plus de session démo de secours — on affiche l'erreur
+        // réelle (le message ci-dessous invite à utiliser l'email/mot de passe).
         setAuthErrorMessage(formatAuthError(result.error));
         return;
       }
@@ -297,17 +286,8 @@ export default function OnboardingScreen() {
         if (Platform.OS === "web" && typeof window !== "undefined") {
           window.sessionStorage?.removeItem("riles_oauth_pending");
         }
-        if (
-          result.error.message?.includes("provider is not enabled") ||
-          result.error.message?.includes("unsupported provider")
-        ) {
-          const demoRes = await signInWithDemoAccount("google");
-          if (demoRes.session) {
-            setAuthMethod("google");
-            setStep(2);
-            return;
-          }
-        }
+        // RILES-004 : plus de session démo de secours — on affiche l'erreur
+        // réelle (le message ci-dessous invite à utiliser l'email/mot de passe).
         setAuthErrorMessage(formatAuthError(result.error));
         return;
       }
@@ -372,13 +352,25 @@ export default function OnboardingScreen() {
           setStep(2);
         }
       } else {
-        const { error, session: s } = await signUpWithEmail(
+        const {
+          error,
+          session: s,
+          needsEmailConfirmation,
+        } = await signUpWithEmail(
           emailInput,
           passwordInput,
           fullNameInput.trim() || undefined,
         );
         if (error) {
           setAuthErrorMessage(formatAuthError(error));
+          return;
+        }
+        if (needsEmailConfirmation) {
+          // RILES-004 : aucun n'est délivré tant que l'email n'est pas
+          // confirmé — on reste déconnecté et on l'annonce à l'utilisateur.
+          setAuthInfoMessage(
+            "Votre compte a été créé. Vérifiez votre boîte mail pour confirmer votre adresse, puis connectez-vous avec l'onglet Connexion.",
+          );
           return;
         }
         if (s) {

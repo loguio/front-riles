@@ -1,13 +1,21 @@
 import PostHog from "posthog-react-native";
 import { Platform } from "react-native";
 
-// Configuration PostHog avec fallback automatique sur la clé du projet Riles
-const POSTHOG_API_KEY =
-  process.env.EXPO_PUBLIC_POSTHOG_API_KEY ||
-  "phc_up5r2TeCUma3Fmq6LHyieLHeJ7GV9MkJY5gCrDi4MfEb";
+// Configuration PostHog — la clé est lue exclusivement depuis l'environnement
+// (RILES-009 : aucun littoral de clé en dur dans le dépôt, voir .env.example).
+const POSTHOG_API_KEY = process.env.EXPO_PUBLIC_POSTHOG_API_KEY || "";
 
 const POSTHOG_HOST =
   process.env.EXPO_PUBLIC_POSTHOG_HOST || "https://eu.i.posthog.com";
+
+// Sans clé, analytics désactivés : on n'envoie rien plutôt que de deviner.
+export const analyticsEnabled = POSTHOG_API_KEY.length > 0;
+
+if (!analyticsEnabled) {
+  console.warn(
+    "[Analytics] EXPO_PUBLIC_POSTHOG_API_KEY absente : analytics désactivés (copiez .env.example vers .env et renseignez la clé).",
+  );
+}
 
 /**
  * Instance principale du client PostHog pour l'application mobile.
@@ -45,6 +53,7 @@ export const analytics = {
    * @param properties Propriétés additionnelles (ex: onglet sélectionné, filtres actifs)
    */
   trackScreen(screenName: string, properties?: Record<string, any>) {
+    if (!analyticsEnabled) return;
     try {
       const sanitizedName = screenName.replace(/^\//, "") || "home";
       posthogClient.screen(sanitizedName, {
@@ -70,6 +79,7 @@ export const analytics = {
    * @param properties Données de contexte pour analyser la conversion
    */
   trackEvent(eventName: string, properties?: Record<string, any>) {
+    if (!analyticsEnabled) return;
     try {
       posthogClient.capture(eventName, {
         platform: "mobile",
@@ -94,6 +104,7 @@ export const analytics = {
    * @param traits Caractéristiques produit (ex: email, nom, statut d'abonnement, objectif)
    */
   identifyUser(userId: string, traits?: Record<string, any>) {
+    if (!analyticsEnabled) return;
     try {
       posthogClient.identify(userId, {
         platform: "mobile",
@@ -116,6 +127,7 @@ export const analytics = {
    * Les événements futurs seront à nouveau anonymes.
    */
   resetUser() {
+    if (!analyticsEnabled) return;
     try {
       posthogClient.reset();
       if (__DEV__) {
@@ -132,6 +144,7 @@ export const analytics = {
    * Force l'envoi immédiat de la file d'attente d'événements vers les serveurs PostHog.
    */
   async flush() {
+    if (!analyticsEnabled) return;
     try {
       await posthogClient.flush();
     } catch (err) {

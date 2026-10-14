@@ -71,23 +71,20 @@ class LargeSecureStoreAdapter implements SupportedStorage {
 
 export const secureStorageAdapter = new LargeSecureStoreAdapter();
 
-// Configuration des identifiants Supabase (avec fallback développement)
-const SUPABASE_PROJECT_REF =
-  process.env.EXPO_PUBLIC_SUPABASE_PROJECT_REF || "bjktawrigqjshmayutac";
+// Configuration des identifiants Supabase — lecture exclusive de
+// l'environnement, aucun fallback en dur (RILES-009 : voir .env.example).
+const SUPABASE_PROJECT_REF = process.env.EXPO_PUBLIC_SUPABASE_PROJECT_REF;
 const SUPABASE_URL =
   process.env.EXPO_PUBLIC_SUPABASE_URL ||
-  `https://${SUPABASE_PROJECT_REF}.supabase.co`;
+  (SUPABASE_PROJECT_REF
+    ? `https://${SUPABASE_PROJECT_REF}.supabase.co`
+    : undefined);
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-const SUPABASE_ANON_KEY =
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqa3Rhd3JpZ3Fqc2htYXl1dGFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDk4NTYwMDAsImV4cCI6MjAyNTQzMjAwMH0.sample_dev_anon_key";
-
-if (
-  SUPABASE_ANON_KEY.includes("sample_dev_anon_key") ||
-  SUPABASE_ANON_KEY.includes("...")
-) {
-  console.warn(
-    "⚠️ [Supabase] Attention : La clé EXPO_PUBLIC_SUPABASE_ANON_KEY n'est pas encore définie dans votre fichier riles/.env. Veuillez copier la clé 'anon public' depuis Supabase Dashboard > Settings > API.",
+// Fail fast : sans configuration, l'authentification ne peut pas fonctionner.
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error(
+    "[Supabase] Configuration manquante : définissez EXPO_PUBLIC_SUPABASE_URL (ou EXPO_PUBLIC_SUPABASE_PROJECT_REF) et EXPO_PUBLIC_SUPABASE_ANON_KEY dans .env — copiez .env.example pour démarrer.",
   );
 }
 
