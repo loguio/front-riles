@@ -22,11 +22,12 @@ import {
 import { Card } from "../../src/components/ui/Card";
 import { LanguageSelector } from "../../src/components/ui/LanguageSelector";
 import { ErrorState } from "../../src/components/ui/ErrorState";
+import { ErrorBoundary } from "../../src/components/ui/ErrorBoundary";
 import { useApp } from "../../src/context/AppContext";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../src/services";
 
-export default function ProfileScreen() {
+function ProfileScreenView() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, resetOnboarding, refreshAllData, isLoading, errorMessage } =
@@ -568,3 +569,16 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
+
+/**
+ * RILES-041 : frontière d'erreur propre à l'onglet Profil — un plantage
+ * n'emporte que cette page (état d'erreur + « Réessayer »), le reste de
+ * l'app reste utilisable.
+ */
+export default function ProfileScreen() {
+  return (
+    <ErrorBoundary title="Le profil n'a pas pu être affiché">
+      <ProfileScreenView />
+    </ErrorBoundary>
+  );
+}

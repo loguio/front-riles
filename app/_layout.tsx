@@ -8,6 +8,7 @@ import { PostHogProvider } from "posthog-react-native";
 import { Colors } from "../src/constants/theme";
 import { AuthProvider, useAuth } from "../src/context/AuthContext";
 import { AppProvider, useApp } from "../src/context/AppContext";
+import { ErrorBoundary } from "../src/components/ui/ErrorBoundary";
 import { posthogClient, analytics } from "../src/services";
 
 function RootNavigation() {
@@ -101,15 +102,20 @@ function RootNavigation() {
 
 export default function RootLayout() {
   return (
-    <PostHogProvider client={posthogClient}>
-      <SafeAreaProvider style={{ backgroundColor: Colors.background }}>
-        <AuthProvider>
-          <AppProvider>
-            <RootNavigation />
-          </AppProvider>
-        </AuthProvider>
-      </SafeAreaProvider>
-    </PostHogProvider>
+    // RILES-041 : frontière posée au sommet de l'arbre — un plantage n'importe
+    // où (providers compris) affiche l'état d'erreur récupérable au lieu de
+    // laisser un écran blanc.
+    <ErrorBoundary>
+      <PostHogProvider client={posthogClient}>
+        <SafeAreaProvider style={{ backgroundColor: Colors.background }}>
+          <AuthProvider>
+            <AppProvider>
+              <RootNavigation />
+            </AppProvider>
+          </AuthProvider>
+        </SafeAreaProvider>
+      </PostHogProvider>
+    </ErrorBoundary>
   );
 }
 

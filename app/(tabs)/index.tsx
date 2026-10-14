@@ -23,6 +23,7 @@ import { Badge } from "../../src/components/ui/Badge";
 import { EffortSlider } from "../../src/components/ui/Slider";
 import { DashboardSkeleton } from "../../src/components/ui/DashboardSkeleton";
 import { ErrorState } from "../../src/components/ui/ErrorState";
+import { ErrorBoundary } from "../../src/components/ui/ErrorBoundary";
 import { useApp } from "../../src/context/AppContext";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../src/services";
@@ -32,7 +33,7 @@ import {
   getWeekNumber,
 } from "../../src/utils/dateUtils";
 
-export default function HomeScreen() {
+function HomeScreenView() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
@@ -1706,3 +1707,16 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+
+/**
+ * RILES-041 : frontière d'erreur propre à l'onglet Accueil — un plantage
+ * n'emporte que cette page (état d'erreur + « Réessayer »), le reste de
+ * l'app reste utilisable.
+ */
+export default function HomeScreen() {
+  return (
+    <ErrorBoundary title="L'accueil n'a pas pu être affiché">
+      <HomeScreenView />
+    </ErrorBoundary>
+  );
+}

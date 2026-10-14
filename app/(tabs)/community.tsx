@@ -19,9 +19,10 @@ import { Card } from "../../src/components/ui/Card";
 import { Badge } from "../../src/components/ui/Badge";
 import { Button } from "../../src/components/ui/Button";
 import { ErrorBanner } from "../../src/components/ui/ErrorState";
+import { ErrorBoundary } from "../../src/components/ui/ErrorBoundary";
 import { useApp } from "../../src/context/AppContext";
 
-export default function CommunityScreen() {
+function CommunityScreenView() {
   const insets = useSafeAreaInsets();
   const {
     communityRuns,
@@ -539,3 +540,16 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
+
+/**
+ * RILES-041 : frontière d'erreur propre à l'onglet Running Club — un plantage
+ * n'emporte que cette page (état d'erreur + « Réessayer »), le reste de
+ * l'app reste utilisable.
+ */
+export default function CommunityScreen() {
+  return (
+    <ErrorBoundary title="Le Running Club n'a pas pu être affiché">
+      <CommunityScreenView />
+    </ErrorBoundary>
+  );
+}

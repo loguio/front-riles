@@ -24,6 +24,7 @@ import { HeartRateZoneBar } from "../../src/components/calendar/HeartRateZoneBar
 import { EffortStructure } from "../../src/components/calendar/EffortStructure";
 import { useApp } from "../../src/context/AppContext";
 import { ErrorBanner } from "../../src/components/ui/ErrorState";
+import { ErrorBoundary } from "../../src/components/ui/ErrorBoundary";
 import {
   getDaysOfWeek,
   getMonthGrid,
@@ -34,7 +35,7 @@ import {
   getWeekNumber,
 } from "../../src/utils/dateUtils";
 
-export default function CalendarScreen() {
+function CalendarScreenView() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
@@ -2531,3 +2532,16 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 });
+
+/**
+ * RILES-041 : frontière d'erreur propre à l'onglet Calendrier — un plantage
+ * n'emporte que cette page (état d'erreur + « Réessayer »), le reste de
+ * l'app reste utilisable.
+ */
+export default function CalendarScreen() {
+  return (
+    <ErrorBoundary title="Le calendrier n'a pas pu être affiché">
+      <CalendarScreenView />
+    </ErrorBoundary>
+  );
+}
