@@ -51,8 +51,16 @@ export function useProGate(
   const [isSubscribing, setIsSubscribing] = useState<boolean>(false);
   const [subscribeError, setSubscribeError] = useState<boolean>(false);
 
-  const openPaywall = useCallback(() => setPaywallVisible(true), []);
-  const closePaywall = useCallback(() => setPaywallVisible(false), []);
+  // Clear any stale subscribe error when the paywall is opened or dismissed,
+  // so a previous failure is not shown on the next visit.
+  const openPaywall = useCallback(() => {
+    setSubscribeError(false);
+    setPaywallVisible(true);
+  }, []);
+  const closePaywall = useCallback(() => {
+    setSubscribeError(false);
+    setPaywallVisible(false);
+  }, []);
 
   const requirePro = useCallback(
     (action: () => void) => {

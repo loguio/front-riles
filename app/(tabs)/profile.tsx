@@ -282,6 +282,7 @@ function ProfileScreenView() {
         onSubscribe={gate.subscribe}
         onRestore={gate.restore}
         isSubscribing={gate.isSubscribing}
+        error={gate.subscribeError}
       />
     </ScrollView>
   );

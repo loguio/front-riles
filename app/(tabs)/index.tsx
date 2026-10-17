@@ -984,6 +984,7 @@ function HomeScreenView() {
         onSubscribe={gate.subscribe}
         onRestore={gate.restore}
         isSubscribing={gate.isSubscribing}
+        error={gate.subscribeError}
       />
 
       {/* On-screen but invisible capture host. It lives OUTSIDE the ScrollView
