@@ -137,4 +137,47 @@ describe("CommunityScreen states", () => {
     // Second run is joined -> short "Inscrit" action.
     expect(screen.getByText("Inscrit ✓")).toBeTruthy();
   });
+
+  it("renders every challenge returned by the contract", () => {
+    mockContext({
+      challenges: [
+        baseChallenge,
+        { ...baseChallenge, id: "challenge-02", title: "Défi 200 km" },
+      ],
+    });
+
+    render(<CommunityScreen />);
+
+    expect(screen.getByText("100 km en octobre")).toBeTruthy();
+    expect(screen.getByText("Défi 200 km")).toBeTruthy();
+  });
+
+  it("renders the inline error banner when data is already displayed", () => {
+    mockContext({
+      communityRuns: [baseRun],
+      communityError: { kind: "network", status: 0, message: "offline" },
+    });
+
+    render(<CommunityScreen />);
+
+    expect(screen.getByTestId("community-error-banner")).toBeTruthy();
+    expect(screen.getByText("Vérifie ta connexion et réessaie.")).toBeTruthy();
+    // The full-screen error state is suppressed because runs are present.
+    expect(screen.queryByTestId("community-error")).toBeNull();
+  });
+
+  it("renders the English locale", async () => {
+    await i18n.changeLanguage("en");
+    mockContext({
+      communityRuns: [baseRun],
+      challenges: [baseChallenge],
+    });
+
+    render(<CommunityScreen />);
+
+    expect(screen.getByText("Group runs")).toBeTruthy();
+    expect(screen.getByText("Join the run")).toBeTruthy();
+    expect(screen.getByText("MONTHLY CHALLENGE")).toBeTruthy();
+    expect(screen.getByText("12 participants")).toBeTruthy();
+  });
 });

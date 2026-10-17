@@ -17,6 +17,7 @@ import {
   MonthlyChallenge,
   OnboardingState,
   CoachContext,
+  ToggleRunAction,
 } from "../types";
 import {
   workoutService,
@@ -105,7 +106,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isCoachTyping, setIsCoachTyping] = useState<boolean>(false);
   const [communityRuns, setCommunityRuns] = useState<CommunityRun[]>([]);
   const [challenges, setChallenges] = useState<MonthlyChallenge[]>([]);
-  const [isCommunityLoading, setIsCommunityLoading] = useState<boolean>(false);
+  // Starts `true` so the first render shows the loading state instead of a
+  // flash of the empty state while the community request is in flight.
+  const [isCommunityLoading, setIsCommunityLoading] = useState<boolean>(true);
   const [communityError, setCommunityError] = useState<CommunityError | null>(
     null,
   );
@@ -587,17 +590,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     [selectedDay, selectedDateKey],
   );
 
-  // Inscription / désinscription aux sorties communautaires via l'API réelle
+  // Inscription / désinscription aux sorties communautaires via l'API réelle.
+  // Met à jour l'UI de façon optimiste avant l'aller-retour serveur pour donner
+  // un retour immédiat, puis réconcilie avec la réponse faisant autorité.
   const toggleCommunityRun = useCallback(
     async (runId: string) => {
-      const result = await communityService.toggleRunRegistration(runId);
+      const current = communityRuns.find((run) => run.id === runId);
+      if (!current) return;
+
+      // Action explicite dérivée de l'état courant : contrat déterministe,
+      // jamais de bascule implicite côté serveur.
+      const action: ToggleRunAction = current.isJoined ? "leave" : "join";
+      const previousIsJoined = current.isJoined;
+      const previousCount = current.participantCount;
+      const optimisticIsJoined = !current.isJoined;
+      const optimisticCount = Math.max(
+        0,
+        current.participantCount + (optimisticIsJoined ? 1 : -1),
+      );
+
+      // 1. Application optimiste : l'UI réagit au tap avant tout réseau.
+      setCommunityRuns((prev) =>
+        prev.map((run) =>
+          run.id === runId
+            ? {
+                ...run,
+                isJoined: optimisticIsJoined,
+                participantCount: optimisticCount,
+              }
+            : run,
+        ),
+      );
+
+      const result = await communityService.toggleRunRegistration(runId, action);
 
       if (!result.ok) {
+        // 2. Échec : retour propre à l'état précédent + erreur exposée.
+        setCommunityRuns((prev) =>
+          prev.map((run) =>
+            run.id === runId
+              ? {
+                  ...run,
+                  isJoined: previousIsJoined,
+                  participantCount: previousCount,
+                }
+              : run,
+          ),
+        );
         setCommunityError(result.error);
         return;
       }
 
-      // Reflète immédiatement la réponse du serveur (isJoined / participantCount)
+      // 3. Réconciliation avec la réponse serveur.
       setCommunityRuns((prev) =>
         prev.map((run) =>
           run.id === runId
@@ -613,7 +657,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       // Puis rafraîchit depuis le serveur pour des données faisant autorité.
       await loadCommunityData({ silent: true });
     },
-    [loadCommunityData],
+    [communityRuns, loadCommunityData],
   );
 
   // Finalisation de l'onboarding (avec génération automatique du plan multi-semaines côté backend)

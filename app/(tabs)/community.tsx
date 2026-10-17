@@ -85,7 +85,6 @@ export default function CommunityScreen() {
   >("runs");
 
   const locale = resolveLocale(i18n.language);
-  const challenge = challenges[0] ?? null;
   const featuredRun = communityRuns[0];
   const otherRuns = communityRuns.slice(1);
 
@@ -343,9 +342,13 @@ export default function CommunityScreen() {
         );
       })}
 
-      {/* 9. Club Challenge Card */}
-      {challenge && (
-        <Card variant="peach" style={styles.challengeCard}>
+      {/* 9. Club Challenge Cards — the contract returns an array, render all. */}
+      {challenges.map((challenge) => (
+        <Card
+          key={challenge.id}
+          variant="peach"
+          style={styles.challengeCard}
+        >
           <View style={styles.challengeHeader}>
             <View style={styles.trophyCircle}>
               <Ionicons name="trophy" size={22} color={Colors.textWhite} />
@@ -389,7 +392,7 @@ export default function CommunityScreen() {
             </Text>
           </View>
         </Card>
-      )}
+      ))}
     </ScrollView>
   );
 }
