@@ -13,6 +13,7 @@ import {
   QuickPrompt,
   RpeCheckIn,
   CommunityRun,
+  CommunityError,
   MonthlyChallenge,
   OnboardingState,
   CoachContext,
@@ -40,7 +41,9 @@ interface AppContextType {
   quickPrompts: QuickPrompt[];
   isCoachTyping: boolean;
   communityRuns: CommunityRun[];
-  challenge: MonthlyChallenge | null;
+  challenges: MonthlyChallenge[];
+  isCommunityLoading: boolean;
+  communityError: CommunityError | null;
   activeWeek: number;
   activeMonth: number; // 0-11
   activeYear: number;
@@ -64,6 +67,7 @@ interface AppContextType {
   ) => Promise<void>;
   generateMultiWeekPlan: (weeksToGenerate?: number) => Promise<void>;
   toggleCommunityRun: (runId: string) => Promise<void>;
+  refreshCommunity: () => Promise<void>;
   completeOnboarding: (
     data?: Partial<OnboardingState>,
   ) => Promise<OnboardingState | void>;
@@ -100,7 +104,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const [quickPrompts, setQuickPrompts] = useState<QuickPrompt[]>([]);
   const [isCoachTyping, setIsCoachTyping] = useState<boolean>(false);
   const [communityRuns, setCommunityRuns] = useState<CommunityRun[]>([]);
-  const [challenge, setChallenge] = useState<MonthlyChallenge | null>(null);
+  const [challenges, setChallenges] = useState<MonthlyChallenge[]>([]);
+  const [isCommunityLoading, setIsCommunityLoading] = useState<boolean>(false);
+  const [communityError, setCommunityError] = useState<CommunityError | null>(
+    null,
+  );
   const [activeWeek, setActiveWeekState] = useState<number>(currentWeek);
   const [activeMonth, setActiveMonthState] = useState<number>(currentMonth);
   const [activeYear, setActiveYearState] = useState<number>(currentYear);
@@ -111,6 +119,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   >(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Chargement des données communautaires (sorties + défis) via l'API réelle.
+  // Ne rejette jamais : les erreurs sont capturées et exposées via communityError.
+  const loadCommunityData = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setIsCommunityLoading(true);
+    }
+    setCommunityError(null);
+
+    const [runsResult, challengesResult] = await Promise.all([
+      communityService.getCommunityRuns(),
+      communityService.getMonthlyChallenges(),
+    ]);
+
+    if (runsResult.ok) {
+      setCommunityRuns(runsResult.data);
+    } else {
+      setCommunityError(runsResult.error);
+    }
+
+    if (challengesResult.ok) {
+      setChallenges(challengesResult.data);
+    } else {
+      // On privilégie l'erreur des sorties si les deux échouent.
+      setCommunityError((prev) => prev ?? challengesResult.error);
+    }
+
+    if (!options?.silent) {
+      setIsCommunityLoading(false);
+    }
+  }, []);
+
   // Chargement initial des données connectées au backend
   const loadData = useCallback(async () => {
     try {
@@ -120,6 +159,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       // Synchronisation incrémentale Strava (Safety Net à l'ouverture / pull-to-refresh)
       await workoutService.syncRecentActivities(7).catch(() => {});
 
+      // Chargement communautaire lancé en parallèle (indépendant du reste).
+      const communityPromise = loadCommunityData();
+
       const [
         onboardingState,
         profile,
@@ -127,8 +169,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         monthData,
         messages,
         prompts,
-        runs,
-        monthChallenge,
       ] = await Promise.all([
         onboardingService.getOnboardingState(),
         userService.getProfile(),
@@ -136,9 +176,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         workoutService.getMonthWorkouts(currentMonth, currentYear),
         chatService.getChatHistory(),
         chatService.getQuickPrompts(),
-        communityService.getCommunityRuns(),
-        communityService.getMonthlyChallenge(),
       ]);
+
+      await communityPromise;
 
       setIsOnboardingCompleted(onboardingState.isCompleted);
       setUser(profile);
@@ -146,8 +186,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       setMonthWorkouts(monthData);
       setChatMessages(messages);
       setQuickPrompts(prompts);
-      setCommunityRuns(runs);
-      setChallenge(monthChallenge);
 
       // Sélection de la séance par défaut (séance du jour en priorité ou première de la semaine)
       const defaultSession =
@@ -167,7 +205,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [currentWeek, currentYear, currentMonth, currentDay, todayDateKey]);
+  }, [
+    currentWeek,
+    currentYear,
+    currentMonth,
+    currentDay,
+    todayDateKey,
+    loadCommunityData,
+  ]);
 
   useEffect(() => {
     loadData();
@@ -542,17 +587,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     [selectedDay, selectedDateKey],
   );
 
-  // Inscription / désinscription aux sorties communautaires
-  const toggleCommunityRun = useCallback(async (runId: string) => {
-    try {
-      const updatedRun = await communityService.toggleRunRegistration(runId);
+  // Inscription / désinscription aux sorties communautaires via l'API réelle
+  const toggleCommunityRun = useCallback(
+    async (runId: string) => {
+      const result = await communityService.toggleRunRegistration(runId);
+
+      if (!result.ok) {
+        setCommunityError(result.error);
+        return;
+      }
+
+      // Reflète immédiatement la réponse du serveur (isJoined / participantCount)
       setCommunityRuns((prev) =>
-        prev.map((r) => (r.id === runId ? updatedRun : r)),
+        prev.map((run) =>
+          run.id === runId
+            ? {
+                ...run,
+                isJoined: result.data.isJoined,
+                participantCount: result.data.participantCount,
+              }
+            : run,
+        ),
       );
-    } catch (err) {
-      console.error("Failed to toggle run RSVP:", err);
-    }
-  }, []);
+
+      // Puis rafraîchit depuis le serveur pour des données faisant autorité.
+      await loadCommunityData({ silent: true });
+    },
+    [loadCommunityData],
+  );
 
   // Finalisation de l'onboarding (avec génération automatique du plan multi-semaines côté backend)
   const completeOnboarding = useCallback(
@@ -624,7 +686,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         quickPrompts,
         isCoachTyping,
         communityRuns,
-        challenge,
+        challenges,
+        isCommunityLoading,
+        communityError,
         activeWeek,
         activeMonth,
         activeYear,
@@ -641,6 +705,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         applyCoachAction,
         generateMultiWeekPlan,
         toggleCommunityRun,
+        refreshCommunity: loadCommunityData,
         completeOnboarding,
         resetOnboarding,
         refreshAllData: loadData,
