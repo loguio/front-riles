@@ -11,3 +11,5 @@ export * from "./chat/QuickSuggestions";
 export * from "./chat/ChatInput";
 export * from "./calendar/HeartRateZoneBar";
 export * from "./calendar/EffortStructure";
+export * from "./share/SessionShareCard";
+export * from "./share/ShareableSessionCard";

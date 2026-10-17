@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,8 @@ import { Card } from "../../src/components/ui/Card";
 import { Badge } from "../../src/components/ui/Badge";
 import { EffortSlider } from "../../src/components/ui/Slider";
 import { DashboardSkeleton } from "../../src/components/ui/DashboardSkeleton";
+import { SessionShareCard } from "../../src/components/share/SessionShareCard";
+import { shareSessionCard } from "../../src/utils/shareSession";
 import { useApp } from "../../src/context/AppContext";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../src/services";
@@ -45,13 +47,14 @@ export default function HomeScreen() {
     refreshAllData,
     setSelectedDateKey,
   } = useApp();
-  const { t } = useTranslation(["home", "common"]);
+  const { t } = useTranslation(["home", "common", "share"]);
 
   const [currentRpe, setCurrentRpe] = useState<number>(rpeCheckIn?.rating || 5);
   const [isRpeSaved, setIsRpeSaved] = useState<boolean>(false);
   const [isSavingRpe, setIsSavingRpe] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [showRpeInput, setShowRpeInput] = useState<boolean>(false);
+  const shareCardRef = useRef<View>(null);
 
   useEffect(() => {
     if (rpeCheckIn?.rating) {
@@ -124,6 +127,19 @@ export default function HomeScreen() {
   const heroSession = todayWorkout;
   const isHeroDone = heroSession?.status === "done";
   const isHeroRest = heroSession?.isRestDay || heroSession?.status === "rest";
+
+  const handleShareSession = async () => {
+    if (!heroSession) return;
+    try {
+      await shareSessionCard(shareCardRef, {
+        dialogTitle: t("share:share_dialog_title"),
+      });
+      analytics.trackEvent("home_session_shared", { workout_id: heroSession.id });
+    } catch {
+      // The user may cancel the share sheet, or the platform may not support
+      // file sharing; either way there is nothing more to do here.
+    }
+  };
 
   const formatDurationSec = (sec?: number, fallback?: string): string => {
     if (!sec || sec <= 0) return fallback || "—";
@@ -666,8 +682,26 @@ export default function HomeScreen() {
             <Feather name="calendar" size={17} color={Colors.textWhite} />
             <Text style={styles.heroCalendarSecondaryBtnText}>Détails</Text>
           </TouchableOpacity>
+
+          {isHeroDone && heroSession && (
+            <TouchableOpacity
+              style={styles.heroShareBtn}
+              activeOpacity={0.85}
+              onPress={handleShareSession}
+            >
+              <Feather name="share-2" size={17} color={Colors.textWhite} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
+
+      {/* Off-screen render target used to capture the shareable session card.
+          Kept out of the flow so it never affects the visible layout. */}
+      {isHeroDone && heroSession && (
+        <View style={styles.shareCaptureHost} pointerEvents="none">
+          <SessionShareCard ref={shareCardRef} session={heroSession} />
+        </View>
+      )}
 
       {/* 4. Carte Dynamique : Check-in post-séance OU Forme & Disponibilité Banister */}
       {showRpeInput ? (
@@ -1373,6 +1407,19 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.xs,
     fontWeight: "800",
     color: Colors.textWhite,
+  },
+  heroShareBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.22)",
+  },
+  shareCaptureHost: {
+    position: "absolute",
+    left: -10000,
+    top: 0,
   },
 
   // 4. Check-in Card

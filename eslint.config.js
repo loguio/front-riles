@@ -32,7 +32,11 @@ module.exports = [
     },
   },
   {
-    files: ["**/*.test.{js,jsx,ts,tsx}", "**/__tests__/**/*.{js,jsx,ts,tsx}"],
+    files: [
+      "**/*.test.{js,jsx,ts,tsx}",
+      "**/__tests__/**/*.{js,jsx,ts,tsx}",
+      "jest.setup.js",
+    ],
     languageOptions: {
       globals: {
         afterAll: "readonly",

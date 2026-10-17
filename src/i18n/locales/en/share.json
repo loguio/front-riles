@@ -1,0 +1,20 @@
+{
+  "card_title": "My session",
+  "card_subtitle": "Planned vs executed",
+  "status_done": "Session completed",
+  "status_planned": "Upcoming session",
+  "planned": "Planned",
+  "executed": "Executed",
+  "metrics": {
+    "distance": "Distance",
+    "pace": "Pace",
+    "duration": "Duration",
+    "avg_hr": "Avg HR"
+  },
+  "value_empty": "—",
+  "share_button": "Share",
+  "share_dialog_title": "Share my session",
+  "share_unavailable": "Sharing is not available on this device.",
+  "share_failed": "Could not share the session.",
+  "footer": "Generated with Riles"
+}
