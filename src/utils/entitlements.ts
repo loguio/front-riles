@@ -29,11 +29,9 @@ export function getEntitlementState(
       return "trial";
     }
   }
-  // The backend is authoritative: `isPro` without a subscription or a live
-  // trial still counts as Pro.
-  if (entitlement.isPro) {
-    return "pro";
-  }
+  // Strict mirror of the backend `isPro()` rule: Pro when `planType === "pro"`
+  // OR the trial is still running. The redundant `entitlement.isPro` flag is
+  // deliberately ignored so the frontend cannot diverge from the backend.
   return "basic";
 }
 
@@ -58,12 +56,4 @@ export function trialDaysRemaining(
     return 0;
   }
   return Math.ceil(diff / MS_PER_DAY);
-}
-
-/** Convenience: is the entitlement currently Pro (subscription or live trial)? */
-export function isEntitled(
-  entitlement: Entitlement | null | undefined,
-  now: Date = new Date(),
-): boolean {
-  return getEntitlementState(entitlement, now) !== "basic";
 }

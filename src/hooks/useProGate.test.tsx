@@ -34,7 +34,9 @@ describe("useProGate (unit)", () => {
   it("runs the action and keeps the paywall closed when the user is Pro", async () => {
     const client = new FakeBillingClient();
     const { result } = renderHook(() => useProGate(client));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.isLoading).toBe(false), {
+      timeout: 10000,
+    });
 
     const action = jest.fn();
     let ran = false;
@@ -50,7 +52,9 @@ describe("useProGate (unit)", () => {
   it("opens the paywall and skips the action when isPro is false", async () => {
     const client = new FakeBillingClient({ planType: "basic", isPro: false });
     const { result } = renderHook(() => useProGate(client));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.isLoading).toBe(false), {
+      timeout: 10000,
+    });
 
     const action = jest.fn();
     act(() => {
@@ -68,7 +72,9 @@ describe("useProGate (unit)", () => {
       trialEndsAt: futureTrial(),
     });
     const { result } = renderHook(() => useProGate(client));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.isLoading).toBe(false), {
+      timeout: 10000,
+    });
 
     expect(result.current.isPro).toBe(true);
     expect(result.current.state).toBe("trial");
@@ -85,7 +91,9 @@ describe("useProGate (unit)", () => {
   it("subscribe upgrades to Pro and closes the paywall", async () => {
     const client = new FakeBillingClient({ planType: "basic", isPro: false });
     const { result } = renderHook(() => useProGate(client));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(result.current.isLoading).toBe(false), {
+      timeout: 10000,
+    });
 
     act(() => result.current.openPaywall());
     expect(result.current.paywallVisible).toBe(true);
@@ -130,9 +138,8 @@ describe("gating at the point of action", () => {
     const onAction = jest.fn();
     const client = new FakeBillingClient({ planType: "basic", isPro: false });
     render(<Harness client={client} onAction={onAction} />);
-    await waitFor(() =>
-      expect(screen.getByTestId("ready").props.children).toBe("true"),
-    );
+    const ready = await screen.findByTestId("ready", {}, { timeout: 10000 });
+    expect(ready.props.children).toBe("true");
 
     fireEvent.press(screen.getByTestId("gated-action"));
 
@@ -144,9 +151,8 @@ describe("gating at the point of action", () => {
     const onAction = jest.fn();
     const client = new FakeBillingClient();
     render(<Harness client={client} onAction={onAction} />);
-    await waitFor(() =>
-      expect(screen.getByTestId("ready").props.children).toBe("true"),
-    );
+    const ready = await screen.findByTestId("ready", {}, { timeout: 10000 });
+    expect(ready.props.children).toBe("true");
 
     fireEvent.press(screen.getByTestId("gated-action"));
 

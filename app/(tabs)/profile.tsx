@@ -131,6 +131,7 @@ export default function ProfileScreen() {
       <ProStatusCard
         state={gate.state}
         trialDaysRemaining={gate.trialDaysRemaining}
+        isLoading={gate.isLoading}
         onUpgrade={gate.openPaywall}
       />
 

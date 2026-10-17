@@ -15,6 +15,8 @@ export interface ProStatusCardProps {
   state: EntitlementState;
   /** Days left in the free trial, shown when `state === "trial"`. */
   trialDaysRemaining?: number;
+  /** While true the entitlement is still unknown: render a neutral placeholder. */
+  isLoading?: boolean;
   /** Opens the paywall (upgrade affordance). */
   onUpgrade: () => void;
 }
@@ -22,14 +24,33 @@ export interface ProStatusCardProps {
 /**
  * Compact plan/entitlement status: shows the remaining trial days while on
  * trial, and an upgrade affordance on BASIC or expired. Hidden for Pro users
- * (nothing to sell).
+ * (nothing to sell). While `isLoading`, renders a neutral placeholder so a Pro
+ * user never sees a free-plan upsell during the initial fetch.
  */
 export function ProStatusCard({
   state,
   trialDaysRemaining = 0,
+  isLoading = false,
   onUpgrade,
 }: ProStatusCardProps) {
   const { t } = useTranslation(["billing", "common"]);
+
+  if (isLoading) {
+    return (
+      <View style={styles.card} testID="pro-status-card">
+        <View style={styles.iconBox}>
+          <MaterialCommunityIcons
+            name="crown-outline"
+            size={20}
+            color={Colors.textMuted}
+          />
+        </View>
+        <View style={styles.textCol}>
+          <Text style={styles.statusHint}>{t("common:labels.loading")}</Text>
+        </View>
+      </View>
+    );
+  }
 
   if (state === "pro") {
     return (
@@ -73,6 +94,7 @@ export function ProStatusCard({
         variant="primary"
         style={styles.upgradeBtn}
         textStyle={styles.upgradeBtnText}
+        accessibilityLabel={t("billing:a11y_open_paywall")}
       />
     </View>
   );

@@ -1,9 +1,5 @@
 import { Entitlement } from "../types/billing";
-import {
-  getEntitlementState,
-  isEntitled,
-  trialDaysRemaining,
-} from "./entitlements";
+import { getEntitlementState, trialDaysRemaining } from "./entitlements";
 
 const NOW = new Date("2026-10-17T12:00:00.000Z");
 const daysFromNow = (days: number) =>
@@ -31,13 +27,13 @@ describe("getEntitlementState", () => {
     expect(getEntitlementState(pro, NOW)).toBe("pro");
   });
 
-  it("returns pro when the backend already computed isPro", () => {
+  it("mirrors the backend: a stale isPro flag on a basic plan stays basic", () => {
     expect(
       getEntitlementState(
         { planType: "basic", isPro: true, trialEndsAt: null },
         NOW,
       ),
-    ).toBe("pro");
+    ).toBe("basic");
   });
 
   it("returns trial while the trial end is in the future", () => {
@@ -79,14 +75,5 @@ describe("trialDaysRemaining", () => {
 
   it("returns 0 for a malformed date", () => {
     expect(trialDaysRemaining("not-a-date", NOW)).toBe(0);
-  });
-});
-
-describe("isEntitled", () => {
-  it("is true for a subscription or a live trial, false otherwise", () => {
-    expect(isEntitled(pro, NOW)).toBe(true);
-    expect(isEntitled(trial, NOW)).toBe(true);
-    expect(isEntitled(expired, NOW)).toBe(false);
-    expect(isEntitled(null, NOW)).toBe(false);
   });
 });

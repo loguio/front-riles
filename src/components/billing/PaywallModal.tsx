@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Modal,
   Pressable,
@@ -18,7 +18,7 @@ import {
   Typography,
 } from "../../constants/theme";
 import { Button } from "../ui/Button";
-import { EntitlementState } from "../../types/billing";
+import { Entitlement, EntitlementState } from "../../types/billing";
 
 export interface PaywallModalProps {
   visible: boolean;
@@ -27,7 +27,11 @@ export interface PaywallModalProps {
   trialDaysRemaining?: number;
   onClose: () => void;
   onSubscribe?: () => void;
-  onRestore?: () => void;
+  /**
+   * Restores previous purchases. Returns the resulting entitlement so the modal
+   * can confirm the outcome instead of leaving the affordance inert.
+   */
+  onRestore?: () => Promise<Entitlement | null> | void;
   isSubscribing?: boolean;
 }
 
@@ -67,6 +71,22 @@ export function PaywallModal({
 }: PaywallModalProps) {
   const { t } = useTranslation(["billing", "common"]);
   const isPro = state === "pro";
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [restoreResult, setRestoreResult] = useState<"idle" | "done" | "empty">(
+    "idle",
+  );
+
+  const handleRestore = async () => {
+    if (!onRestore || isRestoring) return;
+    setIsRestoring(true);
+    setRestoreResult("idle");
+    try {
+      const next = await onRestore();
+      setRestoreResult(next?.isPro ? "done" : "empty");
+    } finally {
+      setIsRestoring(false);
+    }
+  };
 
   return (
     <Modal
@@ -173,13 +193,26 @@ export function PaywallModal({
 
                 <TouchableOpacity
                   style={styles.restoreBtn}
-                  onPress={onRestore}
+                  onPress={handleRestore}
+                  disabled={isRestoring}
                   accessibilityRole="button"
                 >
                   <Text style={styles.restoreText}>
-                    {t("billing:restore")}
+                    {isRestoring
+                      ? t("common:labels.loading")
+                      : t("billing:restore")}
                   </Text>
                 </TouchableOpacity>
+                {restoreResult !== "idle" && (
+                  <Text
+                    style={styles.restoreFeedback}
+                    testID="restore-feedback"
+                  >
+                    {restoreResult === "done"
+                      ? t("billing:restore_done")
+                      : t("billing:restore_empty")}
+                  </Text>
+                )}
               </>
             )}
 
@@ -334,6 +367,13 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.sm,
     fontWeight: "700",
     color: Colors.primary,
+  },
+  restoreFeedback: {
+    marginTop: 6,
+    fontSize: Typography.sizes.sm,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+    textAlign: "center",
   },
   dismissBtn: {
     marginTop: Spacing.sm,

@@ -106,4 +106,45 @@ describe("PaywallModal", () => {
 
     expect(screen.queryByTestId("paywall-modal")).toBeNull();
   });
+
+  it("confirms a successful restore instead of leaving the CTA inert", async () => {
+    const onRestore = jest.fn().mockResolvedValue({
+      planType: "pro",
+      isPro: true,
+      trialEndsAt: null,
+    });
+    render(
+      <PaywallModal
+        visible
+        state="basic"
+        onClose={jest.fn()}
+        onRestore={onRestore}
+      />,
+    );
+
+    fireEvent.press(screen.getByText("Restaurer mes achats"));
+
+    expect(await screen.findByText("Achats restaurés")).toBeTruthy();
+    expect(onRestore).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports when there is nothing to restore", async () => {
+    const onRestore = jest.fn().mockResolvedValue({
+      planType: "basic",
+      isPro: false,
+      trialEndsAt: null,
+    });
+    render(
+      <PaywallModal
+        visible
+        state="basic"
+        onClose={jest.fn()}
+        onRestore={onRestore}
+      />,
+    );
+
+    fireEvent.press(screen.getByText("Restaurer mes achats"));
+
+    expect(await screen.findByText("Aucun achat à restaurer")).toBeTruthy();
+  });
 });

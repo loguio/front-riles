@@ -13,6 +13,8 @@
   "cta": "Start the free trial",
   "cta_loading": "Activating…",
   "restore": "Restore purchases",
+  "restore_done": "Purchases restored",
+  "restore_empty": "No purchases to restore",
   "dismiss": "Not now",
   "close": "Close",
   "already_pro_title": "You're already Pro 🎉",
@@ -20,11 +22,9 @@
   "trial_days_one": "Free trial: {{count}} day left",
   "trial_days_other": "Free trial: {{count}} days left",
   "status_pro": "Pro subscription active",
-  "status_trial": "Free trial",
   "status_basic": "Free plan",
   "upgrade": "Upgrade to Pro",
   "price_note": "Then €9.99/month. Cancel anytime.",
-  "gate_title": "Pro feature",
   "gate_message": "This feature is part of Riles Pro.",
   "a11y_open_paywall": "Open the Pro offer"
 }
