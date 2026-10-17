@@ -26,12 +26,14 @@ export async function shareSessionCard(
 ): Promise<string> {
   const { dialogTitle, format = "png", quality = 1 } = options;
 
-  const uri = await captureRef(cardRef, { format, quality });
-
+  // Check availability before capturing: there is no point rendering/capturing
+  // an image the platform cannot share.
   const isAvailable = await Sharing.isAvailableAsync();
   if (!isAvailable) {
     throw new Error(SHARING_UNAVAILABLE);
   }
+
+  const uri = await captureRef(cardRef, { format, quality });
 
   await Sharing.shareAsync(uri, {
     mimeType: format === "png" ? "image/png" : "image/jpeg",

@@ -8,7 +8,7 @@
   "filter_members": "Membres",
   "challenge_badge": "DÉFI DU MOIS",
   "challenge_period": "Du {{start}} au {{end}}",
-  "challenge_progress": "{{value}} {{unit}} courus",
+  "challenge_progress": "{{value}} {{unit}} au total",
   "challenge_goal": "Objectif {{value}} {{unit}}",
   "join_run": "Participer à la sortie",
   "leave_run": "Inscrit ✓ (Annuler)",

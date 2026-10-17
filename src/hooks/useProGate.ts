@@ -71,10 +71,10 @@ export function useProGate(
         action();
         return true;
       }
-      setPaywallVisible(true);
+      openPaywall();
       return false;
     },
-    [isLoading, isPro],
+    [isLoading, isPro, openPaywall],
   );
 
   const subscribe = useCallback(async () => {
