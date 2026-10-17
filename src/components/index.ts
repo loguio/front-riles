@@ -12,3 +12,5 @@ export * from "./chat/ChatInput";
 export * from "./calendar/HeartRateZoneBar";
 export * from "./calendar/EffortStructure";
 export * from "./share/SessionShareCard";
+export * from "./billing/PaywallModal";
+export * from "./billing/ProStatusCard";

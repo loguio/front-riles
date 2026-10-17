@@ -29,6 +29,8 @@ import {
   SHARING_UNAVAILABLE,
 } from "../../src/utils/shareSession";
 import { useApp } from "../../src/context/AppContext";
+import { useProGate } from "../../src/hooks/useProGate";
+import { PaywallModal } from "../../src/components/billing/PaywallModal";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../src/services";
 import {
@@ -52,6 +54,7 @@ export default function HomeScreen() {
     setSelectedDateKey,
   } = useApp();
   const { t } = useTranslation(["home", "common", "share"]);
+  const gate = useProGate();
 
   const [currentRpe, setCurrentRpe] = useState<number>(rpeCheckIn?.rating || 5);
   const [isRpeSaved, setIsRpeSaved] = useState<boolean>(false);
@@ -661,16 +664,18 @@ export default function HomeScreen() {
             style={styles.heroWhiteBtn}
             activeOpacity={0.9}
             onPress={() =>
-              router.push({
-                pathname: "/chat",
-                params: {
-                  from: "home",
-                  dateKey: todayDateKey,
-                  workoutTitle:
-                    heroSession?.title ||
-                    (isHeroRest ? "Jour de repos" : undefined),
-                },
-              } as any)
+              gate.requirePro(() =>
+                router.push({
+                  pathname: "/chat",
+                  params: {
+                    from: "home",
+                    dateKey: todayDateKey,
+                    workoutTitle:
+                      heroSession?.title ||
+                      (isHeroRest ? "Jour de repos" : undefined),
+                  },
+                } as any),
+              )
             }
           >
             <View style={styles.heroWhiteBtnContent}>
@@ -939,6 +944,17 @@ export default function HomeScreen() {
         <Feather name="chevron-right" size={20} color={Colors.primary} />
       </TouchableOpacity>
       </ScrollView>
+
+      {/* Soft gate: shown only when a Pro action is tapped without entitlement. */}
+      <PaywallModal
+        visible={gate.paywallVisible}
+        state={gate.state}
+        trialDaysRemaining={gate.trialDaysRemaining}
+        onClose={gate.closePaywall}
+        onSubscribe={gate.subscribe}
+        onRestore={gate.restore}
+        isSubscribing={gate.isSubscribing}
+      />
 
       {/* On-screen but invisible capture host. It lives OUTSIDE the ScrollView
           so Android does not skip/clip it, yet opacity 0 + pointerEvents none

@@ -20,7 +20,10 @@ import {
 } from "../../src/constants/theme";
 import { Card } from "../../src/components/ui/Card";
 import { LanguageSelector } from "../../src/components/ui/LanguageSelector";
+import { ProStatusCard } from "../../src/components/billing/ProStatusCard";
+import { PaywallModal } from "../../src/components/billing/PaywallModal";
 import { useApp } from "../../src/context/AppContext";
+import { useProGate } from "../../src/hooks/useProGate";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../src/services";
 
@@ -29,6 +32,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { user, resetOnboarding, refreshAllData } = useApp();
   const { t } = useTranslation(["profile", "common"]);
+  const gate = useProGate();
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
@@ -122,6 +126,13 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </Card>
       )}
+
+      {/* Plan & entitlement status: trial days remaining / upgrade affordance. */}
+      <ProStatusCard
+        state={gate.state}
+        trialDaysRemaining={gate.trialDaysRemaining}
+        onUpgrade={gate.openPaywall}
+      />
 
       {/* 2. Active Goal Card */}
       <Card style={styles.goalCard}>
@@ -236,7 +247,7 @@ export default function ProfileScreen() {
         <TouchableOpacity
           style={styles.addConstraintBtn}
           activeOpacity={0.7}
-          onPress={() => router.push("/chat" as any)}
+          onPress={() => gate.requirePro(() => router.push("/chat" as any))}
         >
           <Feather name="help-circle" size={18} color={Colors.textSecondary} />
           <Text style={styles.addConstraintText}>
@@ -244,6 +255,17 @@ export default function ProfileScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Soft gate: paywall opened from a gated action or the upgrade CTA. */}
+      <PaywallModal
+        visible={gate.paywallVisible}
+        state={gate.state}
+        trialDaysRemaining={gate.trialDaysRemaining}
+        onClose={gate.closePaywall}
+        onSubscribe={gate.subscribe}
+        onRestore={gate.restore}
+        isSubscribing={gate.isSubscribing}
+      />
     </ScrollView>
   );
 }
