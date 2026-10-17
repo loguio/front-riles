@@ -67,5 +67,7 @@ describe("shareSessionCard", () => {
       SHARING_UNAVAILABLE,
     );
     expect(shareAsyncMock).not.toHaveBeenCalled();
+    // Availability is checked BEFORE capture: no image should be rendered.
+    expect(captureRefMock).not.toHaveBeenCalled();
   });
 });
