@@ -122,9 +122,12 @@ export default tseslint.config(
   },
   {
     // Tests: vitest globals come from explicit imports, keep it permissive.
+    // React Native component tests run under Jest and use `require()` inside
+    // hoisted `jest.mock()` factories, which is the supported pattern.
     files: ["**/*.test.{ts,tsx}"],
     rules: {
       "no-console": "off",
+      "@typescript-eslint/no-require-imports": "off",
     },
   },
   prettier,

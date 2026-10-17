@@ -34,8 +34,11 @@ jobs:
       - name: Type-check
         run: npm run type-check
 
-      - name: Test
+      - name: Test (vitest)
         run: npm run test
+
+      - name: Test (jest / React Native)
+        run: npm run test:rn
 
       - name: Format check
         run: npm run format:check

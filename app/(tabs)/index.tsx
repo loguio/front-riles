@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,7 +25,14 @@ import { EffortSlider } from "../../src/components/ui/Slider";
 import { DashboardSkeleton } from "../../src/components/ui/DashboardSkeleton";
 import { ErrorState } from "../../src/components/ui/ErrorState";
 import { ErrorBoundary } from "../../src/components/ui/ErrorBoundary";
+import { SessionShareCard } from "../../src/components/share/SessionShareCard";
+import {
+  shareSessionCard,
+  SHARING_UNAVAILABLE,
+} from "../../src/utils/shareSession";
 import { useApp } from "../../src/context/AppContext";
+import { useProGate } from "../../src/hooks/useProGate";
+import { PaywallModal } from "../../src/components/billing/PaywallModal";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../src/services";
 import {
@@ -47,13 +55,15 @@ function HomeScreenView() {
     refreshAllData,
     setSelectedDateKey,
   } = useApp();
-  const { t } = useTranslation(["home", "common"]);
+  const { t } = useTranslation(["home", "common", "share"]);
+  const gate = useProGate();
 
   const [currentRpe, setCurrentRpe] = useState<number>(rpeCheckIn?.rating || 5);
   const [isRpeSaved, setIsRpeSaved] = useState<boolean>(false);
   const [isSavingRpe, setIsSavingRpe] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [showRpeInput, setShowRpeInput] = useState<boolean>(false);
+  const shareCardRef = useRef<View>(null);
 
   useEffect(() => {
     if (rpeCheckIn?.rating) {
@@ -126,6 +136,26 @@ function HomeScreenView() {
   const heroSession = todayWorkout;
   const isHeroDone = heroSession?.status === "done";
   const isHeroRest = heroSession?.isRestDay || heroSession?.status === "rest";
+
+  const handleShareSession = async () => {
+    if (!heroSession) return;
+    try {
+      await shareSessionCard(shareCardRef, {
+        dialogTitle: t("share:share_dialog_title"),
+      });
+      analytics.trackEvent("home_session_shared", {
+        workout_id: heroSession.id,
+      });
+    } catch (error) {
+      // Surface capture failures and platforms without file sharing instead of
+      // swallowing them silently (a cancelled share sheet resolves, not rejects).
+      const message =
+        error instanceof Error && error.message === SHARING_UNAVAILABLE
+          ? t("share:share_unavailable")
+          : t("share:share_failed");
+      Alert.alert(t("share:share_button"), message);
+    }
+  };
 
   const formatDurationSec = (sec?: number, fallback?: string): string => {
     if (!sec || sec <= 0) return fallback || "—";
@@ -259,667 +289,719 @@ function HomeScreenView() {
   }
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={[
-        styles.contentContainer,
-        { paddingTop: Math.max(insets.top, 16) + Spacing.sm },
-      ]}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={Colors.primary}
-          colors={[Colors.primary]}
-        />
-      }
-    >
-      {/* Network Error Notice with Retry */}
-      {errorMessage && (
-        <View style={styles.errorBanner}>
-          <Ionicons name="cloud-offline-outline" size={18} color="#B91C1C" />
-          <Text style={styles.errorText} numberOfLines={2}>
-            {errorMessage || "Erreur de chargement des données"}
-          </Text>
-          <TouchableOpacity onPress={refreshAllData} activeOpacity={0.7}>
-            <Text style={styles.retryText}>Réessayer</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* 1. Header (Avatar, Date, Greeting + Accès direct Roadmap) */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity
-            style={styles.avatar}
-            onPress={() => router.push("/(tabs)/profile")}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.avatarText}>{user?.initials || "MB"}</Text>
-          </TouchableOpacity>
-          <View style={styles.greetingContainer}>
-            <Text style={styles.headerDate}>{todayFullDateLabel}</Text>
-            <Text style={styles.headerTitle}>
-              {t("home:header.greeting", {
-                name: user?.name?.split(" ")[0] || "Athlète",
-              })}
-            </Text>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={styles.headerRoadmapBtn}
-          activeOpacity={0.85}
-          onPress={() => router.push("/roadmap" as any)}
-        >
-          <MaterialCommunityIcons
-            name="map-marker-path"
-            size={15}
-            color={Colors.primary}
+    <View style={styles.screen}>
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={[
+          styles.contentContainer,
+          { paddingTop: Math.max(insets.top, 16) + Spacing.sm },
+        ]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.primary}
+            colors={[Colors.primary]}
           />
-          <Text style={styles.headerRoadmapBtnText}>Roadmap</Text>
-        </TouchableOpacity>
-      </View>
+        }
+      >
+        {/* Network Error Notice with Retry */}
+        {errorMessage && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="cloud-offline-outline" size={18} color="#B91C1C" />
+            <Text style={styles.errorText} numberOfLines={2}>
+              {errorMessage || "Erreur de chargement des données"}
+            </Text>
+            <TouchableOpacity onPress={refreshAllData} activeOpacity={0.7}>
+              <Text style={styles.retryText}>Réessayer</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-      {/* 2. Micro-progression & Aperçu des 7 jours de la semaine */}
-      <View style={styles.weekProgressStrip}>
-        <View style={styles.weekProgressInfoRow}>
-          <View style={styles.weekProgressLabelLeft}>
+        {/* 1. Header (Avatar, Date, Greeting + Accès direct Roadmap) */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity
+              style={styles.avatar}
+              onPress={() => router.push("/(tabs)/profile")}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.avatarText}>{user?.initials || "MB"}</Text>
+            </TouchableOpacity>
+            <View style={styles.greetingContainer}>
+              <Text style={styles.headerDate}>{todayFullDateLabel}</Text>
+              <Text style={styles.headerTitle}>
+                {t("home:header.greeting", {
+                  name: user?.name?.split(" ")[0] || "Athlète",
+                })}
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.headerRoadmapBtn}
+            activeOpacity={0.85}
+            onPress={() => router.push("/roadmap" as any)}
+          >
             <MaterialCommunityIcons
-              name="lightning-bolt"
+              name="map-marker-path"
               size={15}
               color={Colors.primary}
             />
-            <Text style={styles.weekProgressLabel}>
-              Volume Semaine {currentWeekNum}
-            </Text>
-          </View>
-          <Text style={styles.weekProgressKmText}>
-            <Text style={styles.weekProgressDoneText}>
-              {weekDoneKm.toFixed(1).replace(".", ",")} km
-            </Text>
-            {weekPlannedKm > 0 ? (
-              <Text style={styles.weekProgressTargetText}>
-                {" "}
-                / {weekPlannedKm.toFixed(0)} km
-              </Text>
-            ) : null}
-          </Text>
+            <Text style={styles.headerRoadmapBtnText}>Roadmap</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.weekProgressBarBg}>
-          <View
-            style={[
-              styles.weekProgressBarFill,
-              { width: `${Math.max(4, Math.min(100, weekProgressPct))}%` },
-            ]}
-          />
-        </View>
-
-        {/* Mini-timeline interactive des 7 jours de la semaine en cours */}
-        <View style={styles.miniWeekDaysRow}>
-          {currentWeekDays.map((day, idx) => {
-            const w = currentWeekSessions[idx];
-            const isToday = day.dateKey === todayDateKey;
-            const isDone =
-              w?.status === "done" && !w?.isRestDay && !isCommuteWorkout(w);
-            const isRest = !w || w.isRestDay || w.status === "rest";
-
-            return (
-              <TouchableOpacity
-                key={day.dateKey}
-                style={[styles.miniDayPill, isToday && styles.miniDayPillToday]}
-                activeOpacity={0.75}
-                onPress={() => handleOpenDayInCalendar(day.dateKey)}
-              >
-                <Text
-                  style={[
-                    styles.miniDayLabel,
-                    isToday && styles.miniDayLabelToday,
-                  ]}
-                >
-                  {day.dayName.slice(0, 1)}
-                </Text>
-                <View
-                  style={[
-                    styles.miniDayStatusCircle,
-                    isDone && styles.miniDayStatusDone,
-                    isToday && !isDone && styles.miniDayStatusToday,
-                    !isDone &&
-                      !isToday &&
-                      !isRest &&
-                      styles.miniDayStatusPlanned,
-                  ]}
-                >
-                  {isDone ? (
-                    <Feather name="check" size={10} color={Colors.textWhite} />
-                  ) : (
-                    <Text
-                      style={[
-                        styles.miniDayNumText,
-                        isToday && styles.miniDayNumTextToday,
-                        isRest && !isToday && { color: Colors.textMuted },
-                      ]}
-                    >
-                      {day.dayNumber}
-                    </Text>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* 3. Hero Card : Séance du Jour complète et structurée */}
-      <View style={styles.heroCard}>
-        <View style={styles.heroCurveOne} />
-        <View style={styles.heroCurveTwo} />
-
-        {/* En-tête de la carte : Statut + Catégorie/Zone */}
-        <View style={styles.heroTopRow}>
-          <View style={styles.heroTopBadgeRow}>
-            <Text style={styles.heroTimeLabel}>
-              {isHeroDone
-                ? `SÉANCE RÉALISÉE${heroSession?.sourceProvider ? ` • ${heroSession.sourceProvider.toUpperCase()}` : ""}`
-                : isHeroRest
-                  ? "AUJOURD'HUI • JOUR DE REPOS"
-                  : `AUJOURD'HUI • ${heroSession?.timeLabel || "AU PROGRAMME"}`}
-            </Text>
-          </View>
-
-          {!isHeroRest &&
-            (heroSession?.targetZoneLabel || heroSession?.category) && (
-              <View style={styles.heroZoneTopPill}>
-                <Text style={styles.heroZoneTopPillText}>
-                  {heroSession?.targetZoneLabel || heroSession?.category}
-                  {heroSession?.targetZoneBpm && !isHeroDone
-                    ? ` (${heroSession.targetZoneBpm})`
-                    : ""}
-                </Text>
-              </View>
-            )}
-        </View>
-
-        <Text style={styles.heroTitle}>
-          {heroSession?.title ||
-            (isHeroRest ? "Jour de repos" : "Footing Fondamental Z2")}
-        </Text>
-
-        {/* Contenu principal selon l'état de la séance du jour */}
-        {isHeroRest ? (
-          <View style={styles.heroRestContainer}>
-            <View style={styles.heroRestBox}>
-              <Ionicons
-                name="moon-outline"
-                size={18}
-                color="rgba(255, 255, 255, 0.95)"
-              />
-              <Text style={styles.heroRestText}>
-                {heroSession?.aiAdjustmentNote ||
-                  "Journée d'assimilation physiologique : laisse ton corps régénérer ses fibres et consolider les adaptations des dernières séances."}
-              </Text>
-            </View>
-
-            {nextUpcomingSession && (
-              <TouchableOpacity
-                style={styles.heroNextWorkoutPreview}
-                activeOpacity={0.85}
-                onPress={() =>
-                  handleOpenDayInCalendar(nextUpcomingSession.dateKey)
-                }
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.heroNextWorkoutSuper}>
-                    PROCHAINE SÉANCE PRÉVUE •{" "}
-                    {nextUpcomingSession.dayName?.toUpperCase()}{" "}
-                    {nextUpcomingSession.dayNumber}
-                  </Text>
-                  <Text style={styles.heroNextWorkoutTitle} numberOfLines={1}>
-                    {nextUpcomingSession.title}
-                  </Text>
-                  <Text style={styles.heroNextWorkoutMeta}>
-                    {nextUpcomingSession.distance} (
-                    {nextUpcomingSession.duration}) • Allure cible{" "}
-                    {nextUpcomingSession.targetPace || "Z2"}
-                  </Text>
-                </View>
-                <Feather
-                  name="chevron-right"
-                  size={18}
-                  color={Colors.textWhite}
-                />
-              </TouchableOpacity>
-            )}
-          </View>
-        ) : (
-          <>
-            {/* Cartouche des 3 métriques principales */}
-            <View style={styles.heroMetricsCartouche}>
-              <View style={styles.heroMetricItem}>
-                <Text style={styles.heroMetricLabel}>DISTANCE</Text>
-                <Text style={styles.heroMetricValue}>
-                  {isHeroDone && heroSession?.actualDistanceKm !== undefined
-                    ? `${heroSession.actualDistanceKm.toFixed(1).replace(".", ",")} km`
-                    : heroSession?.distance || "—"}
-                </Text>
-              </View>
-              <View style={styles.heroMetricDivider} />
-              <View style={styles.heroMetricItem}>
-                <Text style={styles.heroMetricLabel}>DURÉE</Text>
-                <Text style={styles.heroMetricValue}>
-                  {isHeroDone && heroSession?.actualDurationSec
-                    ? formatDurationSec(heroSession.actualDurationSec)
-                    : heroSession?.duration || "—"}
-                </Text>
-              </View>
-              <View style={styles.heroMetricDivider} />
-              <View style={styles.heroMetricItem}>
-                <Text style={styles.heroMetricLabel}>
-                  {isHeroDone ? "ALLURE" : "ALLURE CIBLE"}
-                </Text>
-                <Text style={styles.heroMetricValue}>
-                  {isHeroDone && heroSession?.actualPace
-                    ? heroSession.actualPace
-                    : heroSession?.targetPace || "—"}
-                </Text>
-              </View>
-            </View>
-
-            {/* Détails supplémentaires : Métriques Strava (si faite) OU Structure des blocs (si prévue) */}
-            {isHeroDone ? (
-              <View style={styles.heroSubDetailsBox}>
-                <View style={styles.heroDoneMetricsRow}>
-                  {heroSession?.actualAvgHeartRate ? (
-                    <View style={styles.heroDoneChip}>
-                      <Ionicons
-                        name="heart"
-                        size={12}
-                        color="rgba(255,255,255,0.95)"
-                      />
-                      <Text style={styles.heroDoneChipText}>
-                        {heroSession.actualAvgHeartRate} bpm moy.
-                        {heroSession.actualMaxHeartRate
-                          ? ` (max ${heroSession.actualMaxHeartRate})`
-                          : ""}
-                      </Text>
-                    </View>
-                  ) : null}
-
-                  {heroSession?.actualElevationGain !== undefined &&
-                  heroSession.actualElevationGain > 0 ? (
-                    <View style={styles.heroDoneChip}>
-                      <Feather
-                        name="trending-up"
-                        size={12}
-                        color="rgba(255,255,255,0.95)"
-                      />
-                      <Text style={styles.heroDoneChipText}>
-                        +{Math.round(heroSession.actualElevationGain)} m D+
-                      </Text>
-                    </View>
-                  ) : null}
-
-                  {heroSession?.actualCadence ? (
-                    <View style={styles.heroDoneChip}>
-                      <MaterialCommunityIcons
-                        name="shoe-print"
-                        size={12}
-                        color="rgba(255,255,255,0.95)"
-                      />
-                      <Text style={styles.heroDoneChipText}>
-                        {heroSession.actualCadence} spm
-                      </Text>
-                    </View>
-                  ) : null}
-
-                  {heroSession?.tss ? (
-                    <View style={styles.heroDoneChip}>
-                      <MaterialCommunityIcons
-                        name="lightning-bolt"
-                        size={12}
-                        color="rgba(255,255,255,0.95)"
-                      />
-                      <Text style={styles.heroDoneChipText}>
-                        Charge {heroSession.tss} TSS
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-
-                {Array.isArray(heroSession?.secondaryActivities) &&
-                  heroSession.secondaryActivities.filter(
-                    (s: any) => !isCommuteWorkout(s),
-                  ).length > 0 && (
-                    <Text style={styles.heroSecondaryActivityNote}>
-                      +{" "}
-                      {
-                        heroSession.secondaryActivities.filter(
-                          (s: any) => !isCommuteWorkout(s),
-                        ).length
-                      }{" "}
-                      autre activité enregistrée aujourd'hui
-                    </Text>
-                  )}
-              </View>
-            ) : (
-              <View style={styles.heroSubDetailsBox}>
-                {heroEffortBlocks.length > 0 && (
-                  <View style={styles.heroBlocksSection}>
-                    <Text style={styles.heroBlocksHeaderLabel}>
-                      DÉROULÉ DE LA SÉANCE
-                    </Text>
-                    <View style={styles.heroBlocksList}>
-                      {heroEffortBlocks
-                        .slice(0, 4)
-                        .map((b: any, idx: number) => (
-                          <View key={idx} style={styles.heroBlockItem}>
-                            <View style={styles.heroBlockDot} />
-                            <Text
-                              style={styles.heroBlockTitleText}
-                              numberOfLines={1}
-                            >
-                              {b.title}
-                            </Text>
-                            <Text style={styles.heroBlockDurText}>
-                              {b.durationLabel}
-                            </Text>
-                          </View>
-                        ))}
-                    </View>
-                  </View>
-                )}
-
-                {heroSession?.aiAdjustmentNote ? (
-                  <View style={styles.heroCoachNoteRow}>
-                    <Feather
-                      name="compass"
-                      size={13}
-                      color="rgba(255, 255, 255, 0.9)"
-                    />
-                    <Text style={styles.heroCoachNoteText} numberOfLines={2}>
-                      {heroSession.aiAdjustmentNote}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            )}
-          </>
-        )}
-
-        {/* Barre d'actions de la séance du jour : Parler au coach + Ouvrir dans le calendrier */}
-        <View style={styles.heroActionsRow}>
-          <TouchableOpacity
-            style={styles.heroWhiteBtn}
-            activeOpacity={0.9}
-            onPress={() =>
-              router.push({
-                pathname: "/chat",
-                params: {
-                  from: "home",
-                  dateKey: todayDateKey,
-                  workoutTitle:
-                    heroSession?.title ||
-                    (isHeroRest ? "Jour de repos" : undefined),
-                },
-              } as any)
-            }
-          >
-            <View style={styles.heroWhiteBtnContent}>
-              <Ionicons
-                name="chatbubble-ellipses-outline"
-                size={19}
+        {/* 2. Micro-progression & Aperçu des 7 jours de la semaine */}
+        <View style={styles.weekProgressStrip}>
+          <View style={styles.weekProgressInfoRow}>
+            <View style={styles.weekProgressLabelLeft}>
+              <MaterialCommunityIcons
+                name="lightning-bolt"
+                size={15}
                 color={Colors.primary}
               />
-              <Text style={styles.heroWhiteBtnText}>Parler au coach</Text>
-            </View>
-            <Feather name="chevron-right" size={18} color={Colors.primary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.heroCalendarSecondaryBtn}
-            activeOpacity={0.85}
-            onPress={() => handleOpenDayInCalendar(todayDateKey)}
-          >
-            <Feather name="calendar" size={17} color={Colors.textWhite} />
-            <Text style={styles.heroCalendarSecondaryBtnText}>Détails</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* 4. Carte Dynamique : Check-in post-séance OU Forme & Disponibilité Banister */}
-      {showRpeInput ? (
-        <Card style={styles.checkInCard}>
-          <View style={styles.checkInHeaderRow}>
-            <Text style={styles.checkInSubtitle}>
-              {lastCompletedSession &&
-              lastCompletedSession.actualDistanceKm !== undefined
-                ? `DERNIÈRE SÉANCE • ${lastCompletedSession.actualDistanceKm.toFixed(1).replace(".", ",")} KM À ${lastCompletedSession.actualPace || lastCompletedSession.targetPace}${lastCompletedSession.actualAvgHeartRate ? ` (${lastCompletedSession.actualAvgHeartRate} BPM)` : ""}`
-                : "CHECK-IN • DERNIÈRE SORTIE RÉALISÉE"}
-            </Text>
-            <TouchableOpacity
-              onPress={() => setShowRpeInput(false)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="close" size={20} color={Colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.checkInTitle}>Ressenti dernière{"\n"}sortie</Text>
-
-          <EffortSlider
-            value={currentRpe}
-            min={1}
-            max={10}
-            onValueChange={handleSliderChange}
-          />
-
-          <View style={styles.rpeActionRow}>
-            <TouchableOpacity
-              style={[styles.saveRpeBtn, isRpeSaved && styles.saveRpeBtnDone]}
-              onPress={async () => {
-                await handleSaveRpe();
-                setTimeout(() => setShowRpeInput(false), 800);
-              }}
-              disabled={isSavingRpe}
-              activeOpacity={0.8}
-            >
-              {isSavingRpe ? (
-                <ActivityIndicator size="small" color={Colors.primary} />
-              ) : (
-                <Ionicons
-                  name={isRpeSaved ? "checkmark-circle" : "save-outline"}
-                  size={16}
-                  color={isRpeSaved ? Colors.successText : Colors.primary}
-                />
-              )}
-              <Text
-                style={[
-                  styles.saveRpeText,
-                  isRpeSaved && styles.saveRpeTextDone,
-                ]}
-              >
-                {isSavingRpe
-                  ? "Synchronisation..."
-                  : isRpeSaved
-                    ? "Ressenti enregistré ✓"
-                    : "Valider mon ressenti (RPE)"}
+              <Text style={styles.weekProgressLabel}>
+                Volume Semaine {currentWeekNum}
               </Text>
-            </TouchableOpacity>
+            </View>
+            <Text style={styles.weekProgressKmText}>
+              <Text style={styles.weekProgressDoneText}>
+                {weekDoneKm.toFixed(1).replace(".", ",")} km
+              </Text>
+              {weekPlannedKm > 0 ? (
+                <Text style={styles.weekProgressTargetText}>
+                  {" "}
+                  / {weekPlannedKm.toFixed(0)} km
+                </Text>
+              ) : null}
+            </Text>
           </View>
 
-          <View style={styles.aiMessageContainer}>
-            <MaterialCommunityIcons
-              name="shield-check-outline"
-              size={18}
-              color={Colors.primary}
-              style={styles.aiSparkleIcon}
+          <View style={styles.weekProgressBarBg}>
+            <View
+              style={[
+                styles.weekProgressBarFill,
+                { width: `${Math.max(4, Math.min(100, weekProgressPct))}%` },
+              ]}
             />
-            <Text style={styles.aiMessageText}>
-              {rpeCheckIn?.aiPreservationMessage ||
-                "L'IA ajuste tes allures pour préserver tes tendons et mollets."}
-            </Text>
-          </View>
-        </Card>
-      ) : (
-        <Card style={styles.readinessCard}>
-          <View style={styles.readinessHeaderRow}>
-            <View style={styles.readinessHeaderLeft}>
-              <View style={styles.readinessPulseBox}>
-                <MaterialCommunityIcons
-                  name="heart-pulse"
-                  size={18}
-                  color={Colors.primary}
-                />
-              </View>
-              <Text style={styles.readinessSubtitle}>
-                FORME DU JOUR • DISPONIBILITÉ
-              </Text>
-            </View>
-            <View style={styles.readinessCardBadge}>
-              <Text style={styles.readinessCardBadgeText}>
-                {user?.readinessScore ? `${user.readinessScore}%` : "85%"}
-              </Text>
-            </View>
           </View>
 
-          <Text style={styles.readinessTitle}>Disponibilité & Forme</Text>
+          {/* Mini-timeline interactive des 7 jours de la semaine en cours */}
+          <View style={styles.miniWeekDaysRow}>
+            {currentWeekDays.map((day, idx) => {
+              const w = currentWeekSessions[idx];
+              const isToday = day.dateKey === todayDateKey;
+              const isDone =
+                w?.status === "done" && !w?.isRestDay && !isCommuteWorkout(w);
+              const isRest = !w || w.isRestDay || w.status === "rest";
 
-          <Text style={styles.readinessInsightText}>
-            {isHeroRest
-              ? "Jour de récupération. Tes muscles et articulations se régénèrent pour aborder tes prochaines séances avec un maximum de fraîcheur."
-              : isHeroDone
-                ? "Séance du jour validée ! Tes données Strava sont intégrées à ta charge Banister pour recalibrer ton niveau de forme."
-                : `Score de fraîcheur à ${user?.readinessScore || 85}%. Tes indicateurs physiologiques sont au vert pour réaliser ta séance d'aujourd'hui.`}
+              return (
+                <TouchableOpacity
+                  key={day.dateKey}
+                  style={[
+                    styles.miniDayPill,
+                    isToday && styles.miniDayPillToday,
+                  ]}
+                  activeOpacity={0.75}
+                  onPress={() => handleOpenDayInCalendar(day.dateKey)}
+                >
+                  <Text
+                    style={[
+                      styles.miniDayLabel,
+                      isToday && styles.miniDayLabelToday,
+                    ]}
+                  >
+                    {day.dayName.slice(0, 1)}
+                  </Text>
+                  <View
+                    style={[
+                      styles.miniDayStatusCircle,
+                      isDone && styles.miniDayStatusDone,
+                      isToday && !isDone && styles.miniDayStatusToday,
+                      !isDone &&
+                        !isToday &&
+                        !isRest &&
+                        styles.miniDayStatusPlanned,
+                    ]}
+                  >
+                    {isDone ? (
+                      <Feather
+                        name="check"
+                        size={10}
+                        color={Colors.textWhite}
+                      />
+                    ) : (
+                      <Text
+                        style={[
+                          styles.miniDayNumText,
+                          isToday && styles.miniDayNumTextToday,
+                          isRest && !isToday && { color: Colors.textMuted },
+                        ]}
+                      >
+                        {day.dayNumber}
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* 3. Hero Card : Séance du Jour complète et structurée */}
+        <View style={styles.heroCard}>
+          <View style={styles.heroCurveOne} />
+          <View style={styles.heroCurveTwo} />
+
+          {/* En-tête de la carte : Statut + Catégorie/Zone */}
+          <View style={styles.heroTopRow}>
+            <View style={styles.heroTopBadgeRow}>
+              <Text style={styles.heroTimeLabel}>
+                {isHeroDone
+                  ? `SÉANCE RÉALISÉE${heroSession?.sourceProvider ? ` • ${heroSession.sourceProvider.toUpperCase()}` : ""}`
+                  : isHeroRest
+                    ? "AUJOURD'HUI • JOUR DE REPOS"
+                    : `AUJOURD'HUI • ${heroSession?.timeLabel || "AU PROGRAMME"}`}
+              </Text>
+            </View>
+
+            {!isHeroRest &&
+              (heroSession?.targetZoneLabel || heroSession?.category) && (
+                <View style={styles.heroZoneTopPill}>
+                  <Text style={styles.heroZoneTopPillText}>
+                    {heroSession?.targetZoneLabel || heroSession?.category}
+                    {heroSession?.targetZoneBpm && !isHeroDone
+                      ? ` (${heroSession.targetZoneBpm})`
+                      : ""}
+                  </Text>
+                </View>
+              )}
+          </View>
+
+          <Text style={styles.heroTitle}>
+            {heroSession?.title ||
+              (isHeroRest ? "Jour de repos" : "Footing Fondamental Z2")}
           </Text>
 
-          {lastCompletedSession && (
-            <TouchableOpacity
-              style={styles.rpeSummaryRow}
-              activeOpacity={0.7}
-              onPress={() => setShowRpeInput(true)}
-            >
-              <View style={styles.rpeSummaryLeft}>
+          {/* Contenu principal selon l'état de la séance du jour */}
+          {isHeroRest ? (
+            <View style={styles.heroRestContainer}>
+              <View style={styles.heroRestBox}>
                 <Ionicons
-                  name="checkmark-circle"
-                  size={16}
-                  color={Colors.successText}
+                  name="moon-outline"
+                  size={18}
+                  color="rgba(255, 255, 255, 0.95)"
                 />
-                <Text style={styles.rpeSummaryText} numberOfLines={1}>
-                  Dernière séance :{" "}
-                  {lastCompletedSession.actualDistanceKm
-                    ? `${lastCompletedSession.actualDistanceKm.toFixed(1).replace(".", ",")} km`
-                    : lastCompletedSession.distance || "—"}{" "}
-                  ({lastCompletedSession.title}) • RPE {currentRpe}/10
+                <Text style={styles.heroRestText}>
+                  {heroSession?.aiAdjustmentNote ||
+                    "Journée d'assimilation physiologique : laisse ton corps régénérer ses fibres et consolider les adaptations des dernières séances."}
                 </Text>
               </View>
-              <Text style={styles.rpeEditBtn}>Modifier</Text>
-            </TouchableOpacity>
-          )}
-        </Card>
-      )}
 
-      {/* 5. Carte Objectif & Roadmap du Plan Marathon */}
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={() => router.push("/roadmap" as any)}
-      >
-        <Card style={styles.roadmapCard}>
-          <View style={styles.roadmapCardTopRow}>
-            <View style={styles.roadmapBadgeRow}>
-              <View style={styles.roadmapIconBox}>
-                <MaterialCommunityIcons
-                  name="flag-checkered"
-                  size={18}
+              {nextUpcomingSession && (
+                <TouchableOpacity
+                  style={styles.heroNextWorkoutPreview}
+                  activeOpacity={0.85}
+                  onPress={() =>
+                    handleOpenDayInCalendar(nextUpcomingSession.dateKey)
+                  }
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.heroNextWorkoutSuper}>
+                      PROCHAINE SÉANCE PRÉVUE •{" "}
+                      {nextUpcomingSession.dayName?.toUpperCase()}{" "}
+                      {nextUpcomingSession.dayNumber}
+                    </Text>
+                    <Text style={styles.heroNextWorkoutTitle} numberOfLines={1}>
+                      {nextUpcomingSession.title}
+                    </Text>
+                    <Text style={styles.heroNextWorkoutMeta}>
+                      {nextUpcomingSession.distance} (
+                      {nextUpcomingSession.duration}) • Allure cible{" "}
+                      {nextUpcomingSession.targetPace || "Z2"}
+                    </Text>
+                  </View>
+                  <Feather
+                    name="chevron-right"
+                    size={18}
+                    color={Colors.textWhite}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <>
+              {/* Cartouche des 3 métriques principales */}
+              <View style={styles.heroMetricsCartouche}>
+                <View style={styles.heroMetricItem}>
+                  <Text style={styles.heroMetricLabel}>DISTANCE</Text>
+                  <Text style={styles.heroMetricValue}>
+                    {isHeroDone && heroSession?.actualDistanceKm !== undefined
+                      ? `${heroSession.actualDistanceKm.toFixed(1).replace(".", ",")} km`
+                      : heroSession?.distance || "—"}
+                  </Text>
+                </View>
+                <View style={styles.heroMetricDivider} />
+                <View style={styles.heroMetricItem}>
+                  <Text style={styles.heroMetricLabel}>DURÉE</Text>
+                  <Text style={styles.heroMetricValue}>
+                    {isHeroDone && heroSession?.actualDurationSec
+                      ? formatDurationSec(heroSession.actualDurationSec)
+                      : heroSession?.duration || "—"}
+                  </Text>
+                </View>
+                <View style={styles.heroMetricDivider} />
+                <View style={styles.heroMetricItem}>
+                  <Text style={styles.heroMetricLabel}>
+                    {isHeroDone ? "ALLURE" : "ALLURE CIBLE"}
+                  </Text>
+                  <Text style={styles.heroMetricValue}>
+                    {isHeroDone && heroSession?.actualPace
+                      ? heroSession.actualPace
+                      : heroSession?.targetPace || "—"}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Détails supplémentaires : Métriques Strava (si faite) OU Structure des blocs (si prévue) */}
+              {isHeroDone ? (
+                <View style={styles.heroSubDetailsBox}>
+                  <View style={styles.heroDoneMetricsRow}>
+                    {heroSession?.actualAvgHeartRate ? (
+                      <View style={styles.heroDoneChip}>
+                        <Ionicons
+                          name="heart"
+                          size={12}
+                          color="rgba(255,255,255,0.95)"
+                        />
+                        <Text style={styles.heroDoneChipText}>
+                          {heroSession.actualAvgHeartRate} bpm moy.
+                          {heroSession.actualMaxHeartRate
+                            ? ` (max ${heroSession.actualMaxHeartRate})`
+                            : ""}
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {heroSession?.actualElevationGain !== undefined &&
+                    heroSession.actualElevationGain > 0 ? (
+                      <View style={styles.heroDoneChip}>
+                        <Feather
+                          name="trending-up"
+                          size={12}
+                          color="rgba(255,255,255,0.95)"
+                        />
+                        <Text style={styles.heroDoneChipText}>
+                          +{Math.round(heroSession.actualElevationGain)} m D+
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {heroSession?.actualCadence ? (
+                      <View style={styles.heroDoneChip}>
+                        <MaterialCommunityIcons
+                          name="shoe-print"
+                          size={12}
+                          color="rgba(255,255,255,0.95)"
+                        />
+                        <Text style={styles.heroDoneChipText}>
+                          {heroSession.actualCadence} spm
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {heroSession?.tss ? (
+                      <View style={styles.heroDoneChip}>
+                        <MaterialCommunityIcons
+                          name="lightning-bolt"
+                          size={12}
+                          color="rgba(255,255,255,0.95)"
+                        />
+                        <Text style={styles.heroDoneChipText}>
+                          Charge {heroSession.tss} TSS
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {Array.isArray(heroSession?.secondaryActivities) &&
+                    heroSession.secondaryActivities.filter(
+                      (s: any) => !isCommuteWorkout(s),
+                    ).length > 0 && (
+                      <Text style={styles.heroSecondaryActivityNote}>
+                        +{" "}
+                        {
+                          heroSession.secondaryActivities.filter(
+                            (s: any) => !isCommuteWorkout(s),
+                          ).length
+                        }{" "}
+                        autre activité enregistrée aujourd'hui
+                      </Text>
+                    )}
+                </View>
+              ) : (
+                <View style={styles.heroSubDetailsBox}>
+                  {heroEffortBlocks.length > 0 && (
+                    <View style={styles.heroBlocksSection}>
+                      <Text style={styles.heroBlocksHeaderLabel}>
+                        DÉROULÉ DE LA SÉANCE
+                      </Text>
+                      <View style={styles.heroBlocksList}>
+                        {heroEffortBlocks
+                          .slice(0, 4)
+                          .map((b: any, idx: number) => (
+                            <View key={idx} style={styles.heroBlockItem}>
+                              <View style={styles.heroBlockDot} />
+                              <Text
+                                style={styles.heroBlockTitleText}
+                                numberOfLines={1}
+                              >
+                                {b.title}
+                              </Text>
+                              <Text style={styles.heroBlockDurText}>
+                                {b.durationLabel}
+                              </Text>
+                            </View>
+                          ))}
+                      </View>
+                    </View>
+                  )}
+
+                  {heroSession?.aiAdjustmentNote ? (
+                    <View style={styles.heroCoachNoteRow}>
+                      <Feather
+                        name="compass"
+                        size={13}
+                        color="rgba(255, 255, 255, 0.9)"
+                      />
+                      <Text style={styles.heroCoachNoteText} numberOfLines={2}>
+                        {heroSession.aiAdjustmentNote}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              )}
+            </>
+          )}
+
+          {/* Barre d'actions de la séance du jour : Parler au coach + Ouvrir dans le calendrier */}
+          <View style={styles.heroActionsRow}>
+            <TouchableOpacity
+              style={styles.heroWhiteBtn}
+              activeOpacity={0.9}
+              onPress={() =>
+                gate.requirePro(() =>
+                  router.push({
+                    pathname: "/chat",
+                    params: {
+                      from: "home",
+                      dateKey: todayDateKey,
+                      workoutTitle:
+                        heroSession?.title ||
+                        (isHeroRest ? "Jour de repos" : undefined),
+                    },
+                  } as any),
+                )
+              }
+            >
+              <View style={styles.heroWhiteBtnContent}>
+                <Ionicons
+                  name="chatbubble-ellipses-outline"
+                  size={19}
                   color={Colors.primary}
                 />
+                <Text style={styles.heroWhiteBtnText}>Parler au coach</Text>
               </View>
-              <View>
-                <Text style={styles.roadmapSuperLabel}>
-                  MA PRÉPARATION • ROADMAP
-                </Text>
-                <Text style={styles.roadmapGoalTitle}>
-                  {user?.activeGoal?.title || "Marathon"}
-                  {user?.activeGoal?.target
-                    ? ` • ${user.activeGoal.target}`
-                    : ""}
-                </Text>
-              </View>
+              <Feather name="chevron-right" size={18} color={Colors.primary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.heroCalendarSecondaryBtn}
+              activeOpacity={0.85}
+              onPress={() => handleOpenDayInCalendar(todayDateKey)}
+            >
+              <Feather name="calendar" size={17} color={Colors.textWhite} />
+              <Text style={styles.heroCalendarSecondaryBtnText}>Détails</Text>
+            </TouchableOpacity>
+
+            {isHeroDone && heroSession && (
+              <TouchableOpacity
+                style={styles.heroShareBtn}
+                activeOpacity={0.85}
+                onPress={handleShareSession}
+                accessibilityRole="button"
+                accessibilityLabel={t("share:share_session")}
+              >
+                <Feather name="share-2" size={17} color={Colors.textWhite} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* 4. Carte Dynamique : Check-in post-séance OU Forme & Disponibilité Banister */}
+        {showRpeInput ? (
+          <Card style={styles.checkInCard}>
+            <View style={styles.checkInHeaderRow}>
+              <Text style={styles.checkInSubtitle}>
+                {lastCompletedSession &&
+                lastCompletedSession.actualDistanceKm !== undefined
+                  ? `DERNIÈRE SÉANCE • ${lastCompletedSession.actualDistanceKm.toFixed(1).replace(".", ",")} KM À ${lastCompletedSession.actualPace || lastCompletedSession.targetPace}${lastCompletedSession.actualAvgHeartRate ? ` (${lastCompletedSession.actualAvgHeartRate} BPM)` : ""}`
+                  : "CHECK-IN • DERNIÈRE SORTIE RÉALISÉE"}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowRpeInput(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={20} color={Colors.textSecondary} />
+              </TouchableOpacity>
             </View>
 
-            <View style={styles.roadmapWeeksPill}>
-              <Text style={styles.roadmapWeeksPillText}>
-                {user?.activeGoal?.weeksRemaining
-                  ? `${user.activeGoal.weeksRemaining} sem.`
-                  : "En cours"}
+            <Text style={styles.checkInTitle}>
+              Ressenti dernière{"\n"}sortie
+            </Text>
+
+            <EffortSlider
+              value={currentRpe}
+              min={1}
+              max={10}
+              onValueChange={handleSliderChange}
+            />
+
+            <View style={styles.rpeActionRow}>
+              <TouchableOpacity
+                style={[styles.saveRpeBtn, isRpeSaved && styles.saveRpeBtnDone]}
+                onPress={async () => {
+                  await handleSaveRpe();
+                  setTimeout(() => setShowRpeInput(false), 800);
+                }}
+                disabled={isSavingRpe}
+                activeOpacity={0.8}
+              >
+                {isSavingRpe ? (
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                ) : (
+                  <Ionicons
+                    name={isRpeSaved ? "checkmark-circle" : "save-outline"}
+                    size={16}
+                    color={isRpeSaved ? Colors.successText : Colors.primary}
+                  />
+                )}
+                <Text
+                  style={[
+                    styles.saveRpeText,
+                    isRpeSaved && styles.saveRpeTextDone,
+                  ]}
+                >
+                  {isSavingRpe
+                    ? "Synchronisation..."
+                    : isRpeSaved
+                      ? "Ressenti enregistré ✓"
+                      : "Valider mon ressenti (RPE)"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.aiMessageContainer}>
+              <MaterialCommunityIcons
+                name="shield-check-outline"
+                size={18}
+                color={Colors.primary}
+                style={styles.aiSparkleIcon}
+              />
+              <Text style={styles.aiMessageText}>
+                {rpeCheckIn?.aiPreservationMessage ||
+                  "L'IA ajuste tes allures pour préserver tes tendons et mollets."}
               </Text>
             </View>
-          </View>
-
-          {user?.stravaSixMonthsSummary?.estimatedPaces && (
-            <View style={styles.roadmapPacesStrip}>
-              <View style={styles.roadmapPaceChip}>
-                <Text style={styles.roadmapPaceChipLabel}>Z2</Text>
-                <Text style={styles.roadmapPaceChipVal}>
-                  {user.stravaSixMonthsSummary.estimatedPaces.easyPaceZ2
-                    ?.split("–")[0]
-                    ?.trim() ||
-                    user.stravaSixMonthsSummary.estimatedPaces.easyPaceZ2 ||
-                    "—"}
+          </Card>
+        ) : (
+          <Card style={styles.readinessCard}>
+            <View style={styles.readinessHeaderRow}>
+              <View style={styles.readinessHeaderLeft}>
+                <View style={styles.readinessPulseBox}>
+                  <MaterialCommunityIcons
+                    name="heart-pulse"
+                    size={18}
+                    color={Colors.primary}
+                  />
+                </View>
+                <Text style={styles.readinessSubtitle}>
+                  FORME DU JOUR • DISPONIBILITÉ
                 </Text>
               </View>
-              <View style={styles.roadmapPaceChip}>
-                <Text style={styles.roadmapPaceChipLabel}>Allure Cible</Text>
-                <Text style={styles.roadmapPaceChipVal}>
-                  {user.stravaSixMonthsSummary.estimatedPaces.marathonPaceZ3}
-                </Text>
-              </View>
-              <View style={styles.roadmapPaceChip}>
-                <Text style={styles.roadmapPaceChipLabel}>Seuil Z4</Text>
-                <Text style={styles.roadmapPaceChipVal}>
-                  {user.stravaSixMonthsSummary.estimatedPaces.thresholdPaceZ4}
+              <View style={styles.readinessCardBadge}>
+                <Text style={styles.readinessCardBadgeText}>
+                  {user?.readinessScore ? `${user.readinessScore}%` : "85%"}
                 </Text>
               </View>
             </View>
-          )}
 
-          <View style={styles.roadmapFooterRow}>
-            <Text style={styles.roadmapRaceDateText}>
-              {user?.activeGoal?.raceDate
-                ? `Échéance : ${user.activeGoal.raceDate}`
-                : "Voir les 4 phases et le découpage des semaines"}
+            <Text style={styles.readinessTitle}>Disponibilité & Forme</Text>
+
+            <Text style={styles.readinessInsightText}>
+              {isHeroRest
+                ? "Jour de récupération. Tes muscles et articulations se régénèrent pour aborder tes prochaines séances avec un maximum de fraîcheur."
+                : isHeroDone
+                  ? "Séance du jour validée ! Tes données Strava sont intégrées à ta charge Banister pour recalibrer ton niveau de forme."
+                  : `Score de fraîcheur à ${user?.readinessScore || 85}%. Tes indicateurs physiologiques sont au vert pour réaliser ta séance d'aujourd'hui.`}
             </Text>
-            <View style={styles.roadmapCtaRight}>
-              <Text style={styles.roadmapCtaText}>Voir la roadmap</Text>
-              <Feather name="arrow-right" size={14} color={Colors.primary} />
+
+            {lastCompletedSession && (
+              <TouchableOpacity
+                style={styles.rpeSummaryRow}
+                activeOpacity={0.7}
+                onPress={() => setShowRpeInput(true)}
+              >
+                <View style={styles.rpeSummaryLeft}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={16}
+                    color={Colors.successText}
+                  />
+                  <Text style={styles.rpeSummaryText} numberOfLines={1}>
+                    Dernière séance :{" "}
+                    {lastCompletedSession.actualDistanceKm
+                      ? `${lastCompletedSession.actualDistanceKm.toFixed(1).replace(".", ",")} km`
+                      : lastCompletedSession.distance || "—"}{" "}
+                    ({lastCompletedSession.title}) • RPE {currentRpe}/10
+                  </Text>
+                </View>
+                <Text style={styles.rpeEditBtn}>Modifier</Text>
+              </TouchableOpacity>
+            )}
+          </Card>
+        )}
+
+        {/* 5. Carte Objectif & Roadmap du Plan Marathon */}
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => router.push("/roadmap" as any)}
+        >
+          <Card style={styles.roadmapCard}>
+            <View style={styles.roadmapCardTopRow}>
+              <View style={styles.roadmapBadgeRow}>
+                <View style={styles.roadmapIconBox}>
+                  <MaterialCommunityIcons
+                    name="flag-checkered"
+                    size={18}
+                    color={Colors.primary}
+                  />
+                </View>
+                <View>
+                  <Text style={styles.roadmapSuperLabel}>
+                    MA PRÉPARATION • ROADMAP
+                  </Text>
+                  <Text style={styles.roadmapGoalTitle}>
+                    {user?.activeGoal?.title || "Marathon"}
+                    {user?.activeGoal?.target
+                      ? ` • ${user.activeGoal.target}`
+                      : ""}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.roadmapWeeksPill}>
+                <Text style={styles.roadmapWeeksPillText}>
+                  {user?.activeGoal?.weeksRemaining
+                    ? `${user.activeGoal.weeksRemaining} sem.`
+                    : "En cours"}
+                </Text>
+              </View>
+            </View>
+
+            {user?.stravaSixMonthsSummary?.estimatedPaces && (
+              <View style={styles.roadmapPacesStrip}>
+                <View style={styles.roadmapPaceChip}>
+                  <Text style={styles.roadmapPaceChipLabel}>Z2</Text>
+                  <Text style={styles.roadmapPaceChipVal}>
+                    {user.stravaSixMonthsSummary.estimatedPaces.easyPaceZ2
+                      ?.split("–")[0]
+                      ?.trim() ||
+                      user.stravaSixMonthsSummary.estimatedPaces.easyPaceZ2 ||
+                      "—"}
+                  </Text>
+                </View>
+                <View style={styles.roadmapPaceChip}>
+                  <Text style={styles.roadmapPaceChipLabel}>Allure Cible</Text>
+                  <Text style={styles.roadmapPaceChipVal}>
+                    {user.stravaSixMonthsSummary.estimatedPaces.marathonPaceZ3}
+                  </Text>
+                </View>
+                <View style={styles.roadmapPaceChip}>
+                  <Text style={styles.roadmapPaceChipLabel}>Seuil Z4</Text>
+                  <Text style={styles.roadmapPaceChipVal}>
+                    {user.stravaSixMonthsSummary.estimatedPaces.thresholdPaceZ4}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <View style={styles.roadmapFooterRow}>
+              <Text style={styles.roadmapRaceDateText}>
+                {user?.activeGoal?.raceDate
+                  ? `Échéance : ${user.activeGoal.raceDate}`
+                  : "Voir les 4 phases et le découpage des semaines"}
+              </Text>
+              <View style={styles.roadmapCtaRight}>
+                <Text style={styles.roadmapCtaText}>Voir la roadmap</Text>
+                <Feather name="arrow-right" size={14} color={Colors.primary} />
+              </View>
+            </View>
+          </Card>
+        </TouchableOpacity>
+
+        {/* 6. Running Club Snippet Card */}
+        <TouchableOpacity
+          style={styles.clubCard}
+          activeOpacity={0.9}
+          onPress={() => router.push("/(tabs)/community")}
+        >
+          <View style={styles.clubIconCircle}>
+            <Ionicons name="people" size={22} color={Colors.textWhite} />
+          </View>
+
+          <View style={styles.clubContent}>
+            <Text style={styles.clubCategory}>RUNNING CLUB NANTES</Text>
+            <Text style={styles.clubTitle}>Sortie collective jeudi soir</Text>
+            <View style={styles.clubMetaRow}>
+              <Text style={styles.clubMembers}>12 inscrits • </Text>
+              <Text style={styles.clubActionLink}>Rejoindre le club</Text>
             </View>
           </View>
-        </Card>
-      </TouchableOpacity>
 
-      {/* 6. Running Club Snippet Card */}
-      <TouchableOpacity
-        style={styles.clubCard}
-        activeOpacity={0.9}
-        onPress={() => router.push("/(tabs)/community")}
-      >
-        <View style={styles.clubIconCircle}>
-          <Ionicons name="people" size={22} color={Colors.textWhite} />
+          <Feather name="chevron-right" size={20} color={Colors.primary} />
+        </TouchableOpacity>
+      </ScrollView>
+
+      {/* Soft gate: shown only when a Pro action is tapped without entitlement. */}
+      <PaywallModal
+        visible={gate.paywallVisible}
+        state={gate.state}
+        trialDaysRemaining={gate.trialDaysRemaining}
+        onClose={gate.closePaywall}
+        onSubscribe={gate.subscribe}
+        onRestore={gate.restore}
+        isSubscribing={gate.isSubscribing}
+        error={gate.subscribeError}
+      />
+
+      {/* On-screen but invisible capture host. It lives OUTSIDE the ScrollView
+          so Android does not skip/clip it, yet opacity 0 + pointerEvents none
+          keep it from affecting the visible UI. The ref is on the inner card,
+          so the wrapper's opacity is not baked into the captured image. */}
+      {isHeroDone && heroSession && (
+        <View
+          style={styles.shareCaptureHost}
+          pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <SessionShareCard ref={shareCardRef} session={heroSession} />
         </View>
-
-        <View style={styles.clubContent}>
-          <Text style={styles.clubCategory}>RUNNING CLUB NANTES</Text>
-          <Text style={styles.clubTitle}>Sortie collective jeudi soir</Text>
-          <View style={styles.clubMetaRow}>
-            <Text style={styles.clubMembers}>12 inscrits • </Text>
-            <Text style={styles.clubActionLink}>Rejoindre le club</Text>
-          </View>
-        </View>
-
-        <Feather name="chevron-right" size={20} color={Colors.primary} />
-      </TouchableOpacity>
-    </ScrollView>
+      )}
+    </View>
   );
 }
 
@@ -1396,6 +1478,23 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.xs,
     fontWeight: "800",
     color: Colors.textWhite,
+  },
+  heroShareBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.22)",
+  },
+  shareCaptureHost: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: 1,
+    height: 1,
+    overflow: "visible",
+    opacity: 0,
   },
 
   // 4. Check-in Card

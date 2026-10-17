@@ -1,0 +1,31 @@
+{
+  "title": "Go Pro with Riles",
+  "subtitle": "Unlimited AI coaching and dynamic adaptation of your plan.",
+  "trial_badge": "14-day free trial",
+  "benefits": {
+    "dynamic_title": "Dynamic adaptation",
+    "dynamic_desc": "Your plan recalculates after every session and every check-in.",
+    "coach_title": "Unlimited AI coach",
+    "coach_desc": "Ask anything and reshape your week as often as you like.",
+    "analysis_title": "Advanced analysis",
+    "analysis_desc": "Banister load, target paces and personalised zones."
+  },
+  "cta": "Start the free trial",
+  "cta_loading": "Activating…",
+  "restore": "Restore purchases",
+  "restore_done": "Purchases restored",
+  "restore_empty": "No purchases to restore",
+  "error": "Something went wrong. Please try again.",
+  "dismiss": "Not now",
+  "close": "Close",
+  "already_pro_title": "You're already Pro 🎉",
+  "already_pro_subtitle": "Enjoy every feature, without limits.",
+  "trial_days_one": "Free trial: {{count}} day left",
+  "trial_days_other": "Free trial: {{count}} days left",
+  "status_pro": "Pro subscription active",
+  "status_basic": "Free plan",
+  "upgrade": "Upgrade to Pro",
+  "price_note": "Then €9.99/month. Cancel anytime.",
+  "gate_message": "This feature is part of Riles Pro.",
+  "a11y_open_paywall": "Open the Pro offer"
+}
