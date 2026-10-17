@@ -4,8 +4,6 @@ import {
   ConnectedApp,
   ChatMessage,
   QuickPrompt,
-  CommunityRun,
-  MonthlyChallenge,
   StravaSixMonthsSummary,
 } from "../types";
 import { Colors } from "../constants/theme";
@@ -1932,45 +1930,6 @@ export const QUICK_PROMPTS: QuickPrompt[] = [
   },
 ];
 
-export const INITIAL_COMMUNITY_RUNS: CommunityRun[] = [
-  {
-    id: "run-1",
-    tag: "PROCHAINE SORTIE",
-    location: "Île de Nantes",
-    title: "Sortie collective du jeudi soir",
-    description:
-      "Allure cool et fractionné doux le long des bords de Loire. Tous niveaux bienvenus !",
-    dateLabel: "Jeu. 15 Oct",
-    timeLabel: "19h00",
-    attendeesCount: 12,
-    isUserRegistered: false,
-    category: "RUNNING CLUB NANTES",
-    pace: "5:30/km",
-    distance: "8,5 km",
-  },
-  {
-    id: "run-2",
-    tag: "SORTIE LONGUE",
-    location: "Bords de l’Erdre",
-    title: "Sortie Longue Endurance",
-    description:
-      "18 km à allure fondamentale (5:45/km). Ravitaillement convivial au retour.",
-    dateLabel: "Dim. 18 Oct",
-    timeLabel: "09h30",
-    attendeesCount: 24,
-    isUserRegistered: true,
-    category: "ENDURANCE COLLECTIVE",
-    pace: "5:45/km",
-    distance: "18 km",
-  },
-];
-
-export const INITIAL_CHALLENGE: MonthlyChallenge = {
-  id: "chal-oct",
-  badge: "DÉFI OCTOBRE",
-  title: "100 km sans culpabilité",
-  description:
-    "Avance à ton allure. Ce qui compte, c'est la régularité, pas la vitesse.",
-  currentKm: 62,
-  targetKm: 100,
-};
+// NOTE: the community runs / monthly challenge mocks were removed in Phase 5B
+// iteration 2. Community data is now served by `communityService` (real API,
+// see `CONTRACT-community.md`). Do not reintroduce local seeds here.
