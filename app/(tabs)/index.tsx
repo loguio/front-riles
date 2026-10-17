@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,7 +24,10 @@ import { Badge } from "../../src/components/ui/Badge";
 import { EffortSlider } from "../../src/components/ui/Slider";
 import { DashboardSkeleton } from "../../src/components/ui/DashboardSkeleton";
 import { SessionShareCard } from "../../src/components/share/SessionShareCard";
-import { shareSessionCard } from "../../src/utils/shareSession";
+import {
+  shareSessionCard,
+  SHARING_UNAVAILABLE,
+} from "../../src/utils/shareSession";
 import { useApp } from "../../src/context/AppContext";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../src/services";
@@ -135,9 +139,14 @@ export default function HomeScreen() {
         dialogTitle: t("share:share_dialog_title"),
       });
       analytics.trackEvent("home_session_shared", { workout_id: heroSession.id });
-    } catch {
-      // The user may cancel the share sheet, or the platform may not support
-      // file sharing; either way there is nothing more to do here.
+    } catch (error) {
+      // Surface capture failures and platforms without file sharing instead of
+      // swallowing them silently (a cancelled share sheet resolves, not rejects).
+      const message =
+        error instanceof Error && error.message === SHARING_UNAVAILABLE
+          ? t("share:share_unavailable")
+          : t("share:share_failed");
+      Alert.alert(t("share:share_button"), message);
     }
   };
 
@@ -256,22 +265,23 @@ export default function HomeScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={[
-        styles.contentContainer,
-        { paddingTop: Math.max(insets.top, 16) + Spacing.sm },
-      ]}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={Colors.primary}
-          colors={[Colors.primary]}
-        />
-      }
-    >
+    <View style={styles.screen}>
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={[
+          styles.contentContainer,
+          { paddingTop: Math.max(insets.top, 16) + Spacing.sm },
+        ]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.primary}
+            colors={[Colors.primary]}
+          />
+        }
+      >
       {/* Network Error Notice with Retry */}
       {errorMessage && (
         <View style={styles.errorBanner}>
@@ -688,20 +698,14 @@ export default function HomeScreen() {
               style={styles.heroShareBtn}
               activeOpacity={0.85}
               onPress={handleShareSession}
+              accessibilityRole="button"
+              accessibilityLabel={t("share:share_session")}
             >
               <Feather name="share-2" size={17} color={Colors.textWhite} />
             </TouchableOpacity>
           )}
         </View>
       </View>
-
-      {/* Off-screen render target used to capture the shareable session card.
-          Kept out of the flow so it never affects the visible layout. */}
-      {isHeroDone && heroSession && (
-        <View style={styles.shareCaptureHost} pointerEvents="none">
-          <SessionShareCard ref={shareCardRef} session={heroSession} />
-        </View>
-      )}
 
       {/* 4. Carte Dynamique : Check-in post-séance OU Forme & Disponibilité Banister */}
       {showRpeInput ? (
@@ -934,7 +938,23 @@ export default function HomeScreen() {
 
         <Feather name="chevron-right" size={20} color={Colors.primary} />
       </TouchableOpacity>
-    </ScrollView>
+      </ScrollView>
+
+      {/* On-screen but invisible capture host. It lives OUTSIDE the ScrollView
+          so Android does not skip/clip it, yet opacity 0 + pointerEvents none
+          keep it from affecting the visible UI. The ref is on the inner card,
+          so the wrapper's opacity is not baked into the captured image. */}
+      {isHeroDone && heroSession && (
+        <View
+          style={styles.shareCaptureHost}
+          pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <SessionShareCard ref={shareCardRef} session={heroSession} />
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -1418,8 +1438,12 @@ const styles = StyleSheet.create({
   },
   shareCaptureHost: {
     position: "absolute",
-    left: -10000,
     top: 0,
+    left: 0,
+    width: 1,
+    height: 1,
+    overflow: "visible",
+    opacity: 0,
   },
 
   // 4. Check-in Card

@@ -13,6 +13,7 @@
   },
   "value_empty": "—",
   "share_button": "Partager",
+  "share_session": "Partager la séance",
   "share_dialog_title": "Partager ma séance",
   "share_unavailable": "Le partage n'est pas disponible sur cet appareil.",
   "share_failed": "Impossible de partager la séance.",

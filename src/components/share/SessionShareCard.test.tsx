@@ -64,4 +64,40 @@ describe("SessionShareCard", () => {
     expect(screen.getByText("Executed")).toBeTruthy();
     expect(screen.getByText("14.2 km")).toBeTruthy();
   });
+
+  it("falls back to placeholders for a planned session with no executed data", async () => {
+    await i18n.changeLanguage("fr");
+
+    const planned: WorkoutSession = {
+      ...session,
+      status: "upcoming",
+      actualDistanceKm: undefined,
+      actualDurationSec: undefined,
+      actualPace: undefined,
+      actualAvgHeartRate: undefined,
+    };
+
+    render(<SessionShareCard session={planned} />);
+
+    expect(screen.getByText("Séance prévue")).toBeTruthy();
+    // Distance, pace, duration and avg HR executed cells all fall back to "—".
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("renders safely when pace and heart rate are null at runtime", async () => {
+    await i18n.changeLanguage("fr");
+
+    const partial = {
+      ...session,
+      actualPace: null,
+      actualAvgHeartRate: null,
+      actualDistanceKm: null,
+    } as unknown as WorkoutSession;
+
+    render(<SessionShareCard session={partial} />);
+
+    // Null executed values must not throw and must show the empty placeholder.
+    expect(screen.getByText("Séance réalisée")).toBeTruthy();
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(3);
+  });
 });

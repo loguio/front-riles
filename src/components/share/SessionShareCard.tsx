@@ -95,7 +95,12 @@ export const SessionShareCard = forwardRef<View, SessionShareCardProps>(
           <View style={styles.headerTopRow}>
             <Text style={styles.headerKicker}>{t("share:card_title")}</Text>
             <View style={styles.statusPill}>
-              <View style={styles.statusDot} />
+              <View
+                style={[
+                  styles.statusDot,
+                  isDone ? styles.statusDotDone : styles.statusDotPlanned,
+                ]}
+              />
               <Text style={styles.statusPillText}>
                 {isDone ? t("share:status_done") : t("share:status_planned")}
               </Text>
@@ -185,7 +190,12 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
+  },
+  statusDotDone: {
     backgroundColor: Colors.success,
+  },
+  statusDotPlanned: {
+    backgroundColor: Colors.zone3,
   },
   statusPillText: {
     fontSize: Typography.sizes.xs,

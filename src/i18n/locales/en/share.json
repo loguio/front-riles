@@ -13,6 +13,7 @@
   },
   "value_empty": "—",
   "share_button": "Share",
+  "share_session": "Share session",
   "share_dialog_title": "Share my session",
   "share_unavailable": "Sharing is not available on this device.",
   "share_failed": "Could not share the session.",
