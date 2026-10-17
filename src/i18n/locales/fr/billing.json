@@ -1,0 +1,30 @@
+{
+  "title": "Passe à Riles Pro",
+  "subtitle": "Le coach IA et l'adaptation dynamique de ton plan, sans limite.",
+  "trial_badge": "14 jours d'essai gratuit",
+  "benefits": {
+    "dynamic_title": "Adaptation dynamique",
+    "dynamic_desc": "Ton plan se recalcule après chaque séance et chaque ressenti.",
+    "coach_title": "Coach IA illimité",
+    "coach_desc": "Pose toutes tes questions et ajuste ta semaine à volonté.",
+    "analysis_title": "Analyse avancée",
+    "analysis_desc": "Charge Banister, allures cibles et zones personnalisées."
+  },
+  "cta": "Commencer l'essai gratuit",
+  "cta_loading": "Activation…",
+  "restore": "Restaurer mes achats",
+  "restore_done": "Achats restaurés",
+  "restore_empty": "Aucun achat à restaurer",
+  "dismiss": "Plus tard",
+  "close": "Fermer",
+  "already_pro_title": "Tu es déjà Pro 🎉",
+  "already_pro_subtitle": "Profite de toutes les fonctionnalités, sans limite.",
+  "trial_days_one": "Essai gratuit : {{count}} jour restant",
+  "trial_days_other": "Essai gratuit : {{count}} jours restants",
+  "status_pro": "Abonnement Pro actif",
+  "status_basic": "Offre gratuite",
+  "upgrade": "Passer à Pro",
+  "price_note": "Puis 9,99 €/mois. Annulable à tout moment.",
+  "gate_message": "Cette fonctionnalité fait partie de Riles Pro.",
+  "a11y_open_paywall": "Ouvrir l'offre Pro"
+}
