@@ -101,7 +101,9 @@ describe("CommunityScreen states", () => {
     render(<CommunityScreen />);
 
     expect(screen.getByTestId("community-error")).toBeTruthy();
-    expect(screen.getByText("Impossible de charger la communauté")).toBeTruthy();
+    expect(
+      screen.getByText("Impossible de charger la communauté"),
+    ).toBeTruthy();
     expect(screen.getByText("Vérifie ta connexion et réessaie.")).toBeTruthy();
 
     fireEvent.press(screen.getByText("Réessayer"));

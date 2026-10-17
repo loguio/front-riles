@@ -22,8 +22,7 @@ jest.mock("@expo/vector-icons", () => {
 });
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const futureTrial = () =>
-  new Date(Date.now() + 9 * DAY_MS).toISOString();
+const futureTrial = () => new Date(Date.now() + 9 * DAY_MS).toISOString();
 
 beforeEach(async () => {
   jest.clearAllMocks();
@@ -154,7 +153,10 @@ function Harness({
   return (
     <View>
       <Text testID="ready">{String(!gate.isLoading)}</Text>
-      <Pressable testID="gated-action" onPress={() => gate.requirePro(onAction)}>
+      <Pressable
+        testID="gated-action"
+        onPress={() => gate.requirePro(onAction)}
+      >
         <Text>Coach</Text>
       </Pressable>
       <PaywallModal

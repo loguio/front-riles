@@ -60,33 +60,37 @@ export const SessionShareCard = forwardRef<View, SessionShareCardProps>(
         : empty,
     };
 
-    const rows: { key: string; label: string; planned: string; executed: string }[] =
-      [
-        {
-          key: "distance",
-          label: t("share:metrics.distance"),
-          planned: planned.distance,
-          executed: executed.distance,
-        },
-        {
-          key: "pace",
-          label: t("share:metrics.pace"),
-          planned: planned.pace,
-          executed: executed.pace,
-        },
-        {
-          key: "duration",
-          label: t("share:metrics.duration"),
-          planned: planned.duration,
-          executed: executed.duration,
-        },
-        {
-          key: "avg_hr",
-          label: t("share:metrics.avg_hr"),
-          planned: planned.avgHr,
-          executed: executed.avgHr,
-        },
-      ];
+    const rows: {
+      key: string;
+      label: string;
+      planned: string;
+      executed: string;
+    }[] = [
+      {
+        key: "distance",
+        label: t("share:metrics.distance"),
+        planned: planned.distance,
+        executed: executed.distance,
+      },
+      {
+        key: "pace",
+        label: t("share:metrics.pace"),
+        planned: planned.pace,
+        executed: executed.pace,
+      },
+      {
+        key: "duration",
+        label: t("share:metrics.duration"),
+        planned: planned.duration,
+        executed: executed.duration,
+      },
+      {
+        key: "avg_hr",
+        label: t("share:metrics.avg_hr"),
+        planned: planned.avgHr,
+        executed: executed.avgHr,
+      },
+    ];
 
     return (
       <View ref={ref} collapsable={false} style={[styles.card, style]}>
