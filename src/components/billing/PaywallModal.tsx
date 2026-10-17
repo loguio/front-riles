@@ -134,7 +134,9 @@ export function PaywallModal({
                   size={40}
                   color={Colors.primary}
                 />
-                <Text style={styles.title}>{t("billing:already_pro_title")}</Text>
+                <Text style={styles.title}>
+                  {t("billing:already_pro_title")}
+                </Text>
                 <Text style={styles.subtitle}>
                   {t("billing:already_pro_subtitle")}
                 </Text>
@@ -153,7 +155,11 @@ export function PaywallModal({
                 <Text style={styles.subtitle}>{t("billing:subtitle")}</Text>
 
                 <View style={styles.trialBadge}>
-                  <Ionicons name="gift-outline" size={15} color={Colors.primary} />
+                  <Ionicons
+                    name="gift-outline"
+                    size={15}
+                    color={Colors.primary}
+                  />
                   <Text style={styles.trialBadgeText}>
                     {t("billing:trial_badge")}
                   </Text>
@@ -191,7 +197,9 @@ export function PaywallModal({
                 </View>
 
                 <Button
-                  label={isSubscribing ? t("billing:cta_loading") : t("billing:cta")}
+                  label={
+                    isSubscribing ? t("billing:cta_loading") : t("billing:cta")
+                  }
                   onPress={onSubscribe}
                   disabled={isSubscribing}
                   style={styles.cta}

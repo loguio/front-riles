@@ -11,10 +11,7 @@ export interface CommunityRunParticipant {
 }
 
 export type ChallengeMetric =
-  | "distance"
-  | "duration"
-  | "elevation"
-  | "sessions";
+  "distance" | "duration" | "elevation" | "sessions";
 
 /** `GET /community/runs` item. `theme` may be absent or `null`. */
 export interface CommunityRun {
@@ -77,5 +74,4 @@ export interface CommunityError {
  * means "no data" or "the request failed".
  */
 export type CommunityResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: CommunityError };
+  { ok: true; data: T } | { ok: false; error: CommunityError };

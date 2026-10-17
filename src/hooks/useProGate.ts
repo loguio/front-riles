@@ -41,12 +41,8 @@ export interface UseProGateResult extends UseEntitlementResult {
 export function useProGate(
   client: BillingClient = billingClient,
 ): UseProGateResult {
-  const {
-    purchasePro,
-    isLoading,
-    isPro,
-    ...entitlement
-  } = useEntitlement(client);
+  const { purchasePro, isLoading, isPro, ...entitlement } =
+    useEntitlement(client);
   const [paywallVisible, setPaywallVisible] = useState<boolean>(false);
   const [isSubscribing, setIsSubscribing] = useState<boolean>(false);
   const [subscribeError, setSubscribeError] = useState<boolean>(false);
