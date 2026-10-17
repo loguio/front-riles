@@ -42,6 +42,18 @@ function normalizeError(error: unknown): CommunityError {
   };
 }
 
+/**
+ * A `200` body that is not an array violates the contract: it must never be
+ * mistaken for an empty list, so it is surfaced as an `unknown` error.
+ */
+function unexpectedShape(): CommunityError {
+  return {
+    kind: "unknown",
+    status: 0,
+    message: "Unexpected community response shape",
+  };
+}
+
 export const communityService = {
   /**
    * `GET /community/runs` — optional `clubId` filter. Returns `[]` on an empty
@@ -54,7 +66,8 @@ export const communityService = {
       const data = await apiClient.get<CommunityRun[]>("community/runs", {
         params: params?.clubId ? { clubId: params.clubId } : undefined,
       });
-      return { ok: true, data: Array.isArray(data) ? data : [] };
+      if (!Array.isArray(data)) return { ok: false, error: unexpectedShape() };
+      return { ok: true, data };
     } catch (error) {
       return { ok: false, error: normalizeError(error) };
     }
@@ -68,7 +81,8 @@ export const communityService = {
       const data = await apiClient.get<MonthlyChallenge[]>(
         "community/challenges",
       );
-      return { ok: true, data: Array.isArray(data) ? data : [] };
+      if (!Array.isArray(data)) return { ok: false, error: unexpectedShape() };
+      return { ok: true, data };
     } catch (error) {
       return { ok: false, error: normalizeError(error) };
     }

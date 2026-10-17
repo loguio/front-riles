@@ -86,6 +86,22 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+/**
+ * Inert placeholder for `loadAppData`'s monthly-challenge dependency: community
+ * data is loaded independently (Phase 5B) and this field is ignored here.
+ */
+const INERT_CHALLENGE: MonthlyChallenge = {
+  id: "",
+  title: "",
+  metric: "distance",
+  target: 0,
+  unit: "",
+  progress: 0,
+  progressRatio: 0,
+  periodStart: "",
+  periodEnd: "",
+};
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -199,7 +215,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           getChatHistory: () => chatService.getChatHistory(),
           getQuickPrompts: () => chatService.getQuickPrompts(),
           getCommunityRuns: async () => [],
-          getMonthlyChallenge: async () => ({ id: "" }) as MonthlyChallenge,
+          getMonthlyChallenge: async () => INERT_CHALLENGE,
         },
         { week: currentWeek, year: currentYear, month: currentMonth },
       );

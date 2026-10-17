@@ -15,6 +15,8 @@ export interface UseProGateResult extends UseEntitlementResult {
    */
   requirePro: (action: () => void) => boolean;
   isSubscribing: boolean;
+  /** True when the last `subscribe()` attempt rejected (paywall stays open). */
+  subscribeError: boolean;
   subscribe: () => Promise<Entitlement | null>;
 }
 
@@ -33,6 +35,7 @@ export interface UseProGateResult extends UseEntitlementResult {
  *     onSubscribe={gate.subscribe}
  *     onRestore={gate.restore}
  *     isSubscribing={gate.isSubscribing}
+ *     error={gate.subscribeError}
  *   />
  */
 export function useProGate(
@@ -46,6 +49,7 @@ export function useProGate(
   } = useEntitlement(client);
   const [paywallVisible, setPaywallVisible] = useState<boolean>(false);
   const [isSubscribing, setIsSubscribing] = useState<boolean>(false);
+  const [subscribeError, setSubscribeError] = useState<boolean>(false);
 
   const openPaywall = useCallback(() => setPaywallVisible(true), []);
   const closePaywall = useCallback(() => setPaywallVisible(false), []);
@@ -67,10 +71,16 @@ export function useProGate(
 
   const subscribe = useCallback(async () => {
     setIsSubscribing(true);
+    setSubscribeError(false);
     try {
       const next = await purchasePro();
       setPaywallVisible(false);
       return next;
+    } catch {
+      // A real RevenueCat client rejects on failure; keep the paywall open so
+      // the user can retry and surface the inline error to the caller.
+      setSubscribeError(true);
+      return null;
     } finally {
       setIsSubscribing(false);
     }
@@ -90,6 +100,7 @@ export function useProGate(
     closePaywall,
     requirePro,
     isSubscribing,
+    subscribeError,
     subscribe,
   };
 }

@@ -106,6 +106,41 @@ describe("useProGate (unit)", () => {
     expect(result.current.state).toBe("pro");
     expect(result.current.paywallVisible).toBe(false);
   });
+
+  it("surfaces an error and keeps the paywall open when subscribe rejects", async () => {
+    const client: BillingClient = {
+      getEntitlement: async () => ({
+        planType: "basic",
+        isPro: false,
+        trialEndsAt: null,
+      }),
+      purchasePro: async () => {
+        throw new Error("store unavailable");
+      },
+      restore: async () => ({
+        planType: "basic",
+        isPro: false,
+        trialEndsAt: null,
+      }),
+    };
+    const { result } = renderHook(() => useProGate(client));
+    await waitFor(() => expect(result.current.isLoading).toBe(false), {
+      timeout: 10000,
+    });
+
+    act(() => result.current.openPaywall());
+    expect(result.current.paywallVisible).toBe(true);
+
+    let returned: unknown = "unset";
+    await act(async () => {
+      returned = await result.current.subscribe();
+    });
+
+    expect(returned).toBeNull();
+    expect(result.current.subscribeError).toBe(true);
+    // The paywall stays open so the user can retry.
+    expect(result.current.paywallVisible).toBe(true);
+  });
 });
 
 function Harness({
@@ -128,6 +163,7 @@ function Harness({
         trialDaysRemaining={gate.trialDaysRemaining}
         onClose={gate.closePaywall}
         onSubscribe={gate.subscribe}
+        error={gate.subscribeError}
       />
     </View>
   );

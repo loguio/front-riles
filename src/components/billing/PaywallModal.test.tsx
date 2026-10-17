@@ -147,4 +147,29 @@ describe("PaywallModal", () => {
 
     expect(await screen.findByText("Aucun achat à restaurer")).toBeTruthy();
   });
+
+  it("surfaces an inline error and stays open when restore rejects", async () => {
+    const onRestore = jest.fn().mockRejectedValue(new Error("store down"));
+    render(
+      <PaywallModal
+        visible
+        state="basic"
+        onClose={jest.fn()}
+        onRestore={onRestore}
+      />,
+    );
+
+    fireEvent.press(screen.getByText("Restaurer mes achats"));
+
+    expect(
+      await screen.findByText("Une erreur est survenue. Réessaie."),
+    ).toBeTruthy();
+    expect(screen.getByTestId("paywall-modal")).toBeTruthy();
+  });
+
+  it("shows the inline error when a subscribe attempt failed", () => {
+    render(<PaywallModal visible state="basic" onClose={jest.fn()} error />);
+
+    expect(screen.getByTestId("paywall-error")).toBeTruthy();
+  });
 });

@@ -33,6 +33,8 @@ export interface PaywallModalProps {
    */
   onRestore?: () => Promise<Entitlement | null> | void;
   isSubscribing?: boolean;
+  /** True when the last subscribe attempt failed; shows an inline error. */
+  error?: boolean;
 }
 
 const BENEFITS = [
@@ -68,13 +70,14 @@ export function PaywallModal({
   onSubscribe,
   onRestore,
   isSubscribing = false,
+  error = false,
 }: PaywallModalProps) {
   const { t } = useTranslation(["billing", "common"]);
   const isPro = state === "pro";
   const [isRestoring, setIsRestoring] = useState(false);
-  const [restoreResult, setRestoreResult] = useState<"idle" | "done" | "empty">(
-    "idle",
-  );
+  const [restoreResult, setRestoreResult] = useState<
+    "idle" | "done" | "empty" | "error"
+  >("idle");
 
   const handleRestore = async () => {
     if (!onRestore || isRestoring) return;
@@ -83,6 +86,10 @@ export function PaywallModal({
     try {
       const next = await onRestore();
       setRestoreResult(next?.isPro ? "done" : "empty");
+    } catch {
+      // Restore can reject (e.g. a real RevenueCat client); surface it inline
+      // instead of leaving the affordance stuck.
+      setRestoreResult("error");
     } finally {
       setIsRestoring(false);
     }
@@ -191,6 +198,12 @@ export function PaywallModal({
                 />
                 <Text style={styles.priceNote}>{t("billing:price_note")}</Text>
 
+                {error && (
+                  <Text style={styles.errorText} testID="paywall-error">
+                    {t("billing:error")}
+                  </Text>
+                )}
+
                 <TouchableOpacity
                   style={styles.restoreBtn}
                   onPress={handleRestore}
@@ -205,12 +218,17 @@ export function PaywallModal({
                 </TouchableOpacity>
                 {restoreResult !== "idle" && (
                   <Text
-                    style={styles.restoreFeedback}
+                    style={[
+                      styles.restoreFeedback,
+                      restoreResult === "error" && styles.restoreError,
+                    ]}
                     testID="restore-feedback"
                   >
                     {restoreResult === "done"
                       ? t("billing:restore_done")
-                      : t("billing:restore_empty")}
+                      : restoreResult === "error"
+                        ? t("billing:error")
+                        : t("billing:restore_empty")}
                   </Text>
                 )}
               </>
@@ -373,6 +391,16 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.sm,
     fontWeight: "600",
     color: Colors.textSecondary,
+    textAlign: "center",
+  },
+  restoreError: {
+    color: Colors.zone5,
+  },
+  errorText: {
+    marginTop: Spacing.sm,
+    fontSize: Typography.sizes.sm,
+    fontWeight: "600",
+    color: Colors.zone5,
     textAlign: "center",
   },
   dismissBtn: {

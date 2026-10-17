@@ -15,6 +15,7 @@
   "restore": "Restore purchases",
   "restore_done": "Purchases restored",
   "restore_empty": "No purchases to restore",
+  "error": "Something went wrong. Please try again.",
   "dismiss": "Not now",
   "close": "Close",
   "already_pro_title": "You're already Pro 🎉",

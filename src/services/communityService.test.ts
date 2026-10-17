@@ -117,6 +117,18 @@ describe("communityService.getCommunityRuns", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.kind).toBe("unauthorized");
   });
+
+  it("rejects a non-array payload as kind unknown instead of an empty list", async () => {
+    apiClientMock.get.mockResolvedValueOnce({ runs: [] });
+
+    const result = await communityService.getCommunityRuns();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("unknown");
+      expect(result.error.status).toBe(0);
+    }
+  });
 });
 
 describe("communityService.getMonthlyChallenges", () => {
@@ -129,12 +141,16 @@ describe("communityService.getMonthlyChallenges", () => {
     expect(result).toEqual({ ok: true, data: [challenge] });
   });
 
-  it("coerces a non-array payload to an empty list", async () => {
+  it("rejects a non-array payload as kind unknown instead of an empty list", async () => {
     apiClientMock.get.mockResolvedValueOnce(null);
 
     const result = await communityService.getMonthlyChallenges();
 
-    expect(result).toEqual({ ok: true, data: [] });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("unknown");
+      expect(result.error.status).toBe(0);
+    }
   });
 
   it("maps a 500 to kind server", async () => {
