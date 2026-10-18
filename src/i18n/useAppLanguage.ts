@@ -6,12 +6,11 @@ export interface LanguageInfo {
   code: SupportedLanguage;
   label: string;
   nativeLabel: string;
-  flag: string;
 }
 
 export const AVAILABLE_LANGUAGES: LanguageInfo[] = [
-  { code: "fr", label: "Français", nativeLabel: "Français", flag: "🇫🇷" },
-  { code: "en", label: "Anglais", nativeLabel: "English", flag: "🇬🇧" },
+  { code: "fr", label: "Français", nativeLabel: "Français" },
+  { code: "en", label: "Anglais", nativeLabel: "English" },
 ];
 
 export function useAppLanguage() {

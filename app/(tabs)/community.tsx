@@ -288,6 +288,11 @@ function CommunityScreenView() {
                 : t("community:join_run")
             }
             variant={featuredRun.isJoined ? "outline" : "primary"}
+            icon={
+              featuredRun.isJoined ? (
+                <Feather name="check" size={16} color={Colors.textPrimary} />
+              ) : undefined
+            }
             onPress={() => toggleCommunityRun(featuredRun.id)}
           />
         </Card>
@@ -328,11 +333,16 @@ function CommunityScreenView() {
                 activeOpacity={0.7}
                 onPress={() => toggleCommunityRun(run.id)}
               >
-                <Text style={styles.runActionText}>
-                  {run.isJoined
-                    ? t("community:leave_short")
-                    : t("community:join_short")}
-                </Text>
+                <View style={styles.runActionRow}>
+                  {run.isJoined && (
+                    <Feather name="check" size={13} color={Colors.success} />
+                  )}
+                  <Text style={styles.runActionText}>
+                    {run.isJoined
+                      ? t("community:leave_short")
+                      : t("community:join_short")}
+                  </Text>
+                </View>
               </TouchableOpacity>
             </View>
           </Card>
@@ -615,6 +625,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.sm,
     color: Colors.textSecondary,
     fontWeight: "500",
+  },
+  runActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   runActionText: {
     fontSize: Typography.sizes.sm,

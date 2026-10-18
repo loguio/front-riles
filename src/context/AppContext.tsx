@@ -603,7 +603,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
                     ? {
                         ...msg.suggestedAction,
                         applied: true,
-                        label: `✓ Règle « ${ruleToCreate.title} » ajoutée à ton profil`,
+                        label: `Règle « ${ruleToCreate.title} » ajoutée à ton profil`,
                       }
                     : undefined,
                 };
@@ -650,7 +650,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
                   ? {
                       ...msg.suggestedAction,
                       applied: true,
-                      label: "✓ Modification appliquée au calendrier",
+                      label: "Modification appliquée au calendrier",
                     }
                   : undefined,
               };

@@ -797,7 +797,7 @@ function HomeScreenView() {
                   {isSavingRpe
                     ? "Synchronisation..."
                     : isRpeSaved
-                      ? "Ressenti enregistré ✓"
+                      ? "Ressenti enregistré"
                       : "Valider mon ressenti (RPE)"}
                 </Text>
               </TouchableOpacity>

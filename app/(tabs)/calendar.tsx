@@ -956,21 +956,36 @@ function CalendarScreenView() {
 
               <View style={styles.restPillarsGrid}>
                 <View style={styles.restPillarCard}>
-                  <Text style={styles.restPillarEmoji}>💧</Text>
+                  <MaterialCommunityIcons
+                    name="water"
+                    size={20}
+                    color={Colors.primary}
+                    style={styles.restPillarIcon}
+                  />
                   <Text style={styles.restPillarTitle}>Hydratation</Text>
                   <Text style={styles.restPillarDesc}>
                     2L d'eau pour éliminer les toxines et drainer les fibres.
                   </Text>
                 </View>
                 <View style={styles.restPillarCard}>
-                  <Text style={styles.restPillarEmoji}>🧘</Text>
+                  <MaterialCommunityIcons
+                    name="meditation"
+                    size={20}
+                    color={Colors.primary}
+                    style={styles.restPillarIcon}
+                  />
                   <Text style={styles.restPillarTitle}>Mobilité douce</Text>
                   <Text style={styles.restPillarDesc}>
                     10–15 min d'étirements légers ou marche tranquille.
                   </Text>
                 </View>
                 <View style={styles.restPillarCard}>
-                  <Text style={styles.restPillarEmoji}>🌙</Text>
+                  <Ionicons
+                    name="moon-outline"
+                    size={20}
+                    color={Colors.primary}
+                    style={styles.restPillarIcon}
+                  />
                   <Text style={styles.restPillarTitle}>Sommeil</Text>
                   <Text style={styles.restPillarDesc}>
                     Vise 8h de sommeil de qualité pour régénérer le système
@@ -1113,25 +1128,53 @@ function CalendarScreenView() {
                 activeDisplayActivity?.tss !== undefined) && (
                 <View style={styles.realSecondaryRow}>
                   {activeDisplayActivity.actualElevationGain !== undefined && (
-                    <Text style={styles.realSecondaryTag}>
-                      ⛰️ +{activeDisplayActivity.actualElevationGain} m D+
-                    </Text>
+                    <View style={styles.realSecondaryTag}>
+                      <MaterialCommunityIcons
+                        name="elevation-rise"
+                        size={12}
+                        color={Colors.successText}
+                      />
+                      <Text style={styles.realSecondaryTagText}>
+                        +{activeDisplayActivity.actualElevationGain} m D+
+                      </Text>
+                    </View>
                   )}
                   {activeDisplayActivity.actualCadence !== undefined &&
                     !isCycling && (
-                      <Text style={styles.realSecondaryTag}>
-                        👟 {activeDisplayActivity.actualCadence} spm
-                      </Text>
+                      <View style={styles.realSecondaryTag}>
+                        <MaterialCommunityIcons
+                          name="shoe-print"
+                          size={12}
+                          color={Colors.successText}
+                        />
+                        <Text style={styles.realSecondaryTagText}>
+                          {activeDisplayActivity.actualCadence} spm
+                        </Text>
+                      </View>
                     )}
                   {activeDisplayActivity.actualCalories !== undefined && (
-                    <Text style={styles.realSecondaryTag}>
-                      🔥 {activeDisplayActivity.actualCalories} kcal
-                    </Text>
+                    <View style={styles.realSecondaryTag}>
+                      <MaterialCommunityIcons
+                        name="fire"
+                        size={12}
+                        color={Colors.successText}
+                      />
+                      <Text style={styles.realSecondaryTagText}>
+                        {activeDisplayActivity.actualCalories} kcal
+                      </Text>
+                    </View>
                   )}
                   {activeDisplayActivity.tss !== undefined && (
-                    <Text style={styles.realSecondaryTag}>
-                      ⚡ Charge : {activeDisplayActivity.tss} TSS
-                    </Text>
+                    <View style={styles.realSecondaryTag}>
+                      <Feather
+                        name="zap"
+                        size={12}
+                        color={Colors.successText}
+                      />
+                      <Text style={styles.realSecondaryTagText}>
+                        Charge : {activeDisplayActivity.tss} TSS
+                      </Text>
+                    </View>
                   )}
                 </View>
               )}
@@ -1945,13 +1988,18 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   realSecondaryTag: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: Colors.successText,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     backgroundColor: "rgba(255, 255, 255, 0.7)",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: BorderRadius.md,
+  },
+  realSecondaryTagText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.successText,
   },
   cardDivider: {
     height: 1,
@@ -2117,8 +2165,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     alignItems: "center",
   },
-  restPillarEmoji: {
-    fontSize: 20,
+  restPillarIcon: {
     marginBottom: 4,
   },
   restPillarTitle: {

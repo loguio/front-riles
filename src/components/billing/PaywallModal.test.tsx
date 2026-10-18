@@ -75,7 +75,7 @@ describe("PaywallModal", () => {
   it("shows a non-blocking confirmation instead of the CTA when already Pro", () => {
     render(<PaywallModal visible state="pro" onClose={jest.fn()} />);
 
-    expect(screen.getByText("Tu es déjà Pro 🎉")).toBeTruthy();
+    expect(screen.getByText("Tu es déjà Pro")).toBeTruthy();
     expect(screen.queryByText("Commencer l'essai gratuit")).toBeNull();
     // Still dismissible.
     expect(screen.getByTestId("paywall-dismiss")).toBeTruthy();

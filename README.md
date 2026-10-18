@@ -81,6 +81,15 @@ Deux runners, séparés par extension de fichier :
 
 Les deux tournent en CI, avec `lint`, `type-check` et `format:check`.
 
+## Conventions
+
+- **Aucun emoji.** Pas d'emoji dans l'UI, le code, les commentaires, les
+  chaînes i18n, les logs ou la doc. Chaque symbole est une icône
+  `@expo/vector-icons` (Feather / Ionicons / MaterialCommunityIcons), colorée
+  avec les tokens `Colors`.
+- Garde-fou automatique : [`src/noEmoji.test.ts`](./src/noEmoji.test.ts),
+  exécuté par `npm test`.
+
 ## Liens
 
 - Méta-dépôt : <https://github.com/loguio/riles>

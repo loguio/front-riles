@@ -18,7 +18,7 @@
   "error": "Something went wrong. Please try again.",
   "dismiss": "Not now",
   "close": "Close",
-  "already_pro_title": "You're already Pro 🎉",
+  "already_pro_title": "You're already Pro",
   "already_pro_subtitle": "Enjoy every feature, without limits.",
   "trial_days_one": "Free trial: {{count}} day left",
   "trial_days_other": "Free trial: {{count}} days left",

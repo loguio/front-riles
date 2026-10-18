@@ -24,7 +24,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
             onPress={() => changeLanguage(lang.code)}
             activeOpacity={0.7}
           >
-            <Text style={styles.flag}>{lang.flag}</Text>
+            <Text style={styles.langCode}>{lang.code.toUpperCase()}</Text>
             <Text style={[styles.langText, isActive && styles.activeLangText]}>
               {lang.nativeLabel}
             </Text>
@@ -61,8 +61,11 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  flag: {
-    fontSize: 16,
+  langCode: {
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    color: Colors.textSecondary,
   },
   langText: {
     fontSize: 13,

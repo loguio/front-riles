@@ -64,7 +64,7 @@ export const analytics = {
 
       if (__DEV__) {
         console.log(
-          `[Analytics] 📱 Écran visité : ${sanitizedName}`,
+          `[Analytics] Écran visité : ${sanitizedName}`,
           properties || "",
         );
       }
@@ -88,10 +88,7 @@ export const analytics = {
       });
 
       if (__DEV__) {
-        console.log(
-          `[Analytics] ⚡ Événement : ${eventName}`,
-          properties || "",
-        );
+        console.log(`[Analytics] Événement : ${eventName}`, properties || "");
       }
     } catch (err) {
       console.warn("[Analytics] Erreur lors du trackEvent :", err);
@@ -113,7 +110,7 @@ export const analytics = {
 
       if (__DEV__) {
         console.log(
-          `[Analytics] 👤 Utilisateur identifié : ${userId}`,
+          `[Analytics] Utilisateur identifié : ${userId}`,
           traits || "",
         );
       }
@@ -132,7 +129,7 @@ export const analytics = {
       posthogClient.reset();
       if (__DEV__) {
         console.log(
-          "[Analytics] 🔒 Identité utilisateur réinitialisée (déconnexion)",
+          "[Analytics] Identité utilisateur réinitialisée (déconnexion)",
         );
       }
     } catch (err) {

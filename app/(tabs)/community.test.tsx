@@ -137,7 +137,7 @@ describe("CommunityScreen states", () => {
     expect(value.toggleCommunityRun).toHaveBeenCalledWith("run-01");
 
     // Second run is joined -> short "Inscrit" action.
-    expect(screen.getByText("Inscrit ✓")).toBeTruthy();
+    expect(screen.getByText("Inscrit")).toBeTruthy();
   });
 
   it("renders every challenge returned by the contract", () => {

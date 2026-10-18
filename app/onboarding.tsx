@@ -1427,20 +1427,29 @@ export default function OnboardingScreen() {
 
                             <View style={styles.appTextCol}>
                               <Text style={styles.appName}>{app.name}</Text>
-                              <Text
-                                style={[
-                                  styles.appStatusLabel,
-                                  isConnected && styles.appStatusConnected,
-                                ]}
-                              >
-                                {isStrava && isSyncingStrava
-                                  ? "Sync 6 mois..."
-                                  : isConnected
-                                    ? isStrava
-                                      ? "6 mois importés ✓"
-                                      : "Connecté ✓"
-                                    : "Connecter"}
-                              </Text>
+                              <View style={styles.appStatusRow}>
+                                <Text
+                                  style={[
+                                    styles.appStatusLabel,
+                                    isConnected && styles.appStatusConnected,
+                                  ]}
+                                >
+                                  {isStrava && isSyncingStrava
+                                    ? "Sync 6 mois..."
+                                    : isConnected
+                                      ? isStrava
+                                        ? "6 mois importés"
+                                        : "Connecté"
+                                      : "Connecter"}
+                                </Text>
+                                {isConnected && !isSyncingStrava && (
+                                  <Feather
+                                    name="check"
+                                    size={13}
+                                    color={Colors.success}
+                                  />
+                                )}
+                              </View>
                             </View>
                           </View>
                           {isStrava && isSyncingStrava ? (
@@ -2231,6 +2240,11 @@ const styles = StyleSheet.create({
   appStatusConnected: {
     color: Colors.primary,
     fontWeight: "700",
+  },
+  appStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   skipStepBtn: {
     flexDirection: "row",
